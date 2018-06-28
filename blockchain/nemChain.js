@@ -101,13 +101,14 @@ class NemChain {
    * @memberOf WavesChain
    */
   async getTokenBalance(address, tokenName) {
+    const token = this.prepareToken(tokenName);
     const content = await request({
       url: `http://localhost:${this.config.getRestPort()}/addr/${address}/balance`,
       method: 'GET',
       json: true
     });
 
-    return content.mosaics[tokenName].confirmed.value;
+    return content.mosaics[token.name].confirmed.value;
   }
 
   /**
@@ -119,7 +120,16 @@ class NemChain {
    * @memberOf WavesChain
    */
   async getTokenBalanceFromMessage(message, tokenName) {
-    return message.mosaics[tokenName].confirmed.value;
+    const token = this.prepareToken(tokenName);
+    return message.mosaics[token.name].confirmed.value;
+  }
+
+  prepareToken(token) {
+    const parts = token.split('@');
+    return {
+      namespaceId: token[0],
+      name: token[1]
+    };
   }
 
     /**
@@ -133,24 +143,32 @@ class NemChain {
    * 
    * @memberOf WavesChain
    */
-  async sendTokenTransaction(addrFrom, addrTo, token, amount) {
+  async sendTokenTransaction(addrFrom, addrTo, tokenName, amount) {
+    const token = this.prepareToken(tokenName);
+
+
     const transferData = {
-      // An arbitrary address; mine, in this example
-      recipient: addrTo,
-      // ID of a token, or WAVES
-      assetId: token,
-      // The real amount is the given number divided by 10^(precision of the token)
-      amount,
-      // The same rules for these two fields
-      feeAssetId: token,
-      fee: 100000,
-      // 140 bytes of data (it's allowed to use Uint8Array here)
-      attachment: '',
-      timestamp: Date.now()
+      amount: 0,
+      "recipient": addrTo,
+      "recipientPublicKey": "",
+      "isMultisig": false,
+      "timeStamp": Date.now(),
+      "multisigAccount": "",
+      "message": "Hello",
+      "messageType": 1,
+      "mosaics": [
+        {
+          mosaicId: {
+            namespaceId: token.namespace,
+            name: token.name
+          },
+          quantity: amount
+        }
+      ] 
     };
 
     const signTx = await request({
-      url: `${this.config.getSignUrl()}/sign/waves/${addrFrom}`,
+      url: `${this.config.getSignUrl()}/sign/nem/${addrFrom}`,
       method: 'POST',
       json: transferData
     });

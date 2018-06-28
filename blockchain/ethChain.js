@@ -89,6 +89,72 @@ class EthChain {
     });
   }
 
+
+  /**
+   * 
+   * 
+   * @param {String} address 
+   * @return {Number}
+   * 
+   * @memberOf WavesChain
+   */
+  async getTokenBalance(address, tokenName) {
+    const content = await request({
+      url: `http://localhost:${this.config.getRestPort()}/addr/${address}/balance`,
+      method: 'GET',
+      json: true
+    });
+
+    return content.balance;
+  }
+
+  /**
+   * 
+   * 
+   * @param {Object} message 
+   * @return {Number}
+   * 
+   * @memberOf WavesChain
+   */
+  async getTokenBalanceFromMessage(message, tokenName) {
+    return message.balance;
+  }
+
+  /**
+   * 
+   * 
+   * @param {String} addrFrom 
+   * @param {String} addrTo 
+   * @param {Number} amount 
+   * 
+   * @return {models/Tx} Tx
+   * 
+   * @memberOf WavesChain
+   */
+  async sendTokenTransaction(addrFrom, addrTo, tokenName, amount) {
+    const transferData = {
+      "nonce": "0x00",
+      "gasPrice": "0x09184e72a000", 
+      "gasLimit": "0x2710",
+      "to": addrTo, 
+      "value": amount, 
+      // EIP 155 chainId - mainnet: 1, ropsten: 3
+      "chainId": 3
+    };
+
+    const signTx = await request({
+      url: `${this.config.getSignUrl()}/sign/eth/${addrFrom}`,
+      method: 'POST',
+      json: transferData
+    });
+
+    return await request({
+      url: `http://localhost:${this.config.getRestPort()}/tx/send`,
+      method: 'POST',
+      json: signTx
+    });
+  }
+
   /**
    * 
    * @param {Object} contentTx 
