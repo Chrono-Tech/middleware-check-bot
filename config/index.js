@@ -29,6 +29,9 @@ const blockchains = _.chain(blockchainSymbols).map(symbol => {
       parts[5] //restPort
     );
     config.setSymbol(symbol);
+    config.setTokenName(parts[6]);
+    config.setTokenAmount(parts[7]);
+    config.setTokenAccount(parts[8]);
     config.setSignUrl(process.env.SIGN_URL);
     return config;
   }

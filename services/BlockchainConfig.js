@@ -17,6 +17,22 @@ class Config {
     this.restPort = restPort;
   }
 
+  setTokenName(tokenName) {
+    this.tokenName = tokenName;
+  }
+
+  getTokenName() {
+    return this.tokenName;
+  }
+
+  setTokenAmount(tokenAmount) {
+    this.tokenAmount = tokenAmount;
+  }
+
+  getTokenAmount() {
+    return this.tokenAmount;
+  }
+
   setSymbol(symbol) {
     this.symbol = symbol;
   }

@@ -18,6 +18,12 @@ class TxService {
     );
   }
 
+  async getInitTokenBalances(accounts, tokenName) {
+    return await Promise.mapSeries(accounts, async account => 
+      await this.blockchain.getTokenBalance(account, tokenName)
+    );
+  }
+
   async getMessageBalance(address) {
     const channel = await this.config.createChannel();
     const serviceName = this.config.getServiceName();
@@ -52,7 +58,7 @@ class TxService {
       initBalances[1]+transferAmount
     ]
   }
-  
+
   async getCheckBalanceMessages(accounts, newBalances) {
     return await Promise.map(accounts, async(account) => {
       const balance = await this.blockchain.getBalanceFromMessage(
@@ -70,6 +76,83 @@ class TxService {
       return balance == newBalances[balanceKey];
     });
   } 
+
+    
+  async getCheckTokenBalanceMessages(accounts, tokenName, newBalances) {
+    return await Promise.map(accounts, async(account) => {
+      const balance = await this.blockchain.getTokenBalanceFromMessage(
+        await this.getMessageBalance(account),
+        tokenName
+      );
+      const balanceKey = (account == accounts[0]) ? 0 : 1;
+      return balance == newBalances[balanceKey];
+    });
+  }
+
+  async getCheckTokenBalanceRests(accounts, tokenName, newBalances) {
+    return await Promise.map(accounts, async (account) => {
+      const balance = await this.blockchain.getTokenBalance(account, tokenName);
+      const balanceKey = (account == accounts[0]) ? 0 : 1;
+      return balance == newBalances[balanceKey];
+    });
+  } 
+
+
+
+  checkTokenTransaction(accounts) {
+    const initBalances = await this.getInitTokenBalances(accounts, 
+      this.config.getTokenName()
+    );
+
+    let tx;
+    await Promise.all([
+      (async () => {
+        tx = await this.blockchain.sendTokenTransaction(
+          accounts[0], accounts[1], 
+          this.config.getTokenName(),
+          this.config.getTokenAmount()
+        );
+        await this.alerter.info('send token transaction ' + tx.getId());
+      })(),
+      (async () => {
+        const contentTx = await this.getMessageTransaction();
+        await this.alerter.expect(
+          await this.blockchain.checkUnconfirmedTx(contentTx),
+          'check unconfirmed transaction ' + tx.getId()
+        );
+      })(),
+      (async () => {
+        const contentTx = await getMessageTransaction();
+        await this.alerter.expect(
+          await this.blockchain.checkConfirmedTx(contentTx),
+          'check confirmed transaction ' + tx.getId()
+        );
+
+        const newBalances = this.initNewBalances(initBalances, 
+          this.config.getTransferAmount()
+        );
+        await this.alerter.expect(
+          await this.getCheckTokenBalanceMessages(
+            accounts, this.config.getTokenName(),
+            newBalances
+          ),
+          [true, true],
+          'check message about token update balance'
+        );
+
+        await this.alerter.expect(
+          await this.getCheckTokenBalanceRests(
+            accounts, this.config.getTokenName(), 
+            newBalances
+          ),
+          [true, true],
+          'check new token balance on rest'
+        );
+ 
+      })()
+    ]);
+
+  }
 
   checkTransferTransaction(accounts) {
     const initBalances = await this.getInitBalances(accounts);
@@ -103,13 +186,13 @@ class TxService {
         await this.alerter.expect(
           await this.getCheckBalanceMessages(accounts, newBalances),
           [true, true],
-          'check message about balance'
+          'check message about update balance'
         );
 
         await this.alerter.expect(
           await this.getCheckBalanceRests(accounts, newBalances),
           [true, true],
-          'check message about balance'
+          'check new balance on rest'
         );
  
       })()

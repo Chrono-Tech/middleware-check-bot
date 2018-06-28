@@ -36,7 +36,12 @@ const init = async () => {
   
       const txService = new TxService(blockchainConfig, blockchain, alerter);
       await txService.checkTransferTransaction(addresses);
-      //await txService.checkAssetTransaction(accounts, initBalances);
+      if (blockchainConfig.getTokenAccount()) 
+        await txService.checkTokenTransaction([
+          blockchainConfig.getTokenAccount(),
+          accounts[1]
+        ]);
+
     } catch (e) {
       await alerter.error(e);
     }
