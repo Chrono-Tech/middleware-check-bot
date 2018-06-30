@@ -8,7 +8,8 @@
  * @author Kirill Sergeev <cloudkserg11@gmail.com>
 */
 require('dotenv').config();
-const BlockchainConfig = require('../services/BlockchainConfig');
+const BlockchainConfig = require('../services/BlockchainConfig'),
+    _ = require('lodash');
 
 
 const blockchainSymbols = [
@@ -18,8 +19,9 @@ const blockchainSymbols = [
   'ETH'
 ];
 const blockchains = _.chain(blockchainSymbols).map(symbol => {
-  const parts = _.get(process.env, symbol, '').split(',');
-  if (parts.length == 8) {
+    const parts = _.get(process.env, symbol, '').split(',');
+
+  if (parts.length == 9) {
     const config = new BlockchainConfig(
       parts[0], //addressFrom
       parts[1], //addressTo

@@ -84,7 +84,7 @@ class BitcoinChain {
       ], "outputs": [
         {
           "address": addrFrom, 
-          "value": initBalance-amount
+          "value": initBalance-amount-100
         },
         {
           "address": addrTo, 

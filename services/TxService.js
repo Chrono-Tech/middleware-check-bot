@@ -27,9 +27,9 @@ class TxService {
   async getMessageBalance(address) {
     const channel = await this.config.createChannel();
     const serviceName = this.config.getServiceName();
-    await channel.assertExchange('internal', 'topic', {durable: false});
+    await channel.assertExchange('events', 'topic', {durable: false});
     await channel.assertQueue(`${serviceName}_test.${address}`);
-    await channel.bindQueue(`${serviceName}_test.${address}`, 'internal', 
+    await channel.bindQueue(`${serviceName}_test.${address}`, 'events', 
       `${serviceName}_balance.${address}`
     );
     return await new Promise(res => channel.consume(`${serviceName}_test.${address}`, async (message) => {
@@ -41,14 +41,15 @@ class TxService {
   async getMessageTransaction() {
     const channel = await this.config.createChannel();
     const serviceName = this.config.getServiceName();
-    await channel.assertExchange('internal', 'topic', {durable: false});
+    await channel.assertExchange('events', 'topic', {durable: false});
     await channel.assertQueue(`${serviceName}_test.block`);
-    await channel.bindQueue(`${serviceName}_test.block`, 'internal', 
+    await channel.bindQueue(`${serviceName}_test.block`, 'events', 
       `${serviceName}_transaction.*`
     );
     return await new Promise(res => channel.consume(`${serviceName}_test.block`, async (message) => {
-      res(JSON.parse(message.content));
-      await channel.cancel(message.fields.consumerTag);
+        const c = JSON.parse(message.content);
+            await channel.cancel(message.fields.consumerTag);
+            res(c);
     }, {noAck: true}));
   }
 
@@ -99,7 +100,7 @@ class TxService {
 
 
 
-  checkTokenTransaction(accounts) {
+  async checkTokenTransaction(accounts) {
     const initBalances = await this.getInitTokenBalances(accounts, 
       this.config.getTokenName()
     );
@@ -118,13 +119,15 @@ class TxService {
         const contentTx = await this.getMessageTransaction();
         await this.alerter.expect(
           await this.blockchain.checkUnconfirmedTx(contentTx),
+          true,
           'check unconfirmed transaction ' + tx.getId()
         );
       })(),
       (async () => {
-        const contentTx = await getMessageTransaction();
+        const contentTx = await this.getMessageTransaction();
         await this.alerter.expect(
           await this.blockchain.checkConfirmedTx(contentTx),
+          true,
           'check confirmed transaction ' + tx.getId()
         );
 
@@ -154,7 +157,7 @@ class TxService {
 
   }
 
-  checkTransferTransaction(accounts) {
+  async checkTransferTransaction(accounts) {
     const initBalances = await this.getInitBalances(accounts);
 
     let tx;
@@ -164,24 +167,27 @@ class TxService {
           accounts[0], accounts[1], 
           this.config.getTransferAmount()
         );
+        console.log(tx);
         await this.alerter.info('send transfer transaction ' + tx.getId());
       })(),
       (async () => {
         const contentTx = await this.getMessageTransaction();
         await this.alerter.expect(
           await this.blockchain.checkUnconfirmedTx(contentTx),
+          true,
           'check unconfirmed transaction ' + tx.getId()
         );
       })(),
       (async () => {
-        const contentTx = await getMessageTransaction();
+        const contentTx = await this.getMessageTransaction();
         await this.alerter.expect(
           await this.blockchain.checkConfirmedTx(contentTx),
+          true,
           'check confirmed transaction ' + tx.getId()
         );
 
         const newBalances = this.initNewBalances(initBalances, 
-          blockchainConfig.getTransferAmount()
+          this.config.getTransferAmount()
         );
         await this.alerter.expect(
           await this.getCheckBalanceMessages(accounts, newBalances),

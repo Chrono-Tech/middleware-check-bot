@@ -9,11 +9,11 @@ const config = require('./config'),
  Promise = require('bluebird'),
   _ = require('lodash'),
   TxService = require('./services/TxService'),
-  blockchainFactory = require('./services/blochainFactory'),
+  blockchainFactory = require('./services/blockhainFactory'),
   Alerter = require('./services/Alerter');
 
 const registerAccounts = async (blockchain, addresses) => {
-  await Promise.mapSeries(accounts, async address => {
+  await Promise.mapSeries(addresses, async address => {
     await blockchain.registerAccount(address);
   });
 };
@@ -21,8 +21,8 @@ const registerAccounts = async (blockchain, addresses) => {
 
 
 const init = async () => {
-  await Promise.mapSeries(config.getBlockchains(), blockchainConfig => {
-    const blockchain = blockchainFactory.create(blockchainConfig);
+  await Promise.mapSeries(config.blockchains, async (blockchainConfig) => {
+    const blockchain = blockchainFactory(blockchainConfig);
 
     const alerter = new Alerter(config.slack.token, config.slack.conversation, 
       blockchainConfig.getSymbol());
@@ -39,7 +39,7 @@ const init = async () => {
       if (blockchainConfig.getTokenAccount()) 
         await txService.checkTokenTransaction([
           blockchainConfig.getTokenAccount(),
-          accounts[1]
+          addresses[1]
         ]);
 
     } catch (e) {

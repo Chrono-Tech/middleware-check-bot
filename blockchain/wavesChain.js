@@ -3,7 +3,9 @@
  * Licensed under the AGPL Version 3 license.
  * @author Kirill Sergeev <cloudkserg11@gmail.com>
 */
-const request = require('request-promise');
+const request = require('request-promise'),
+      Promise = require('bluebird'),
+      Tx = require('../models/Tx');
 class WavesChain {
 
   constructor(blockchainConfig) {
@@ -17,11 +19,12 @@ class WavesChain {
    * @memberOf WavesChain
    */
   async registerAccount(address) {
-    await request({
+    const b = await request({
       url: `http://localhost:${this.config.getRestPort()}/addr/`,
       method: 'POST',
       json: {address: address}
     });
+    console.log(b);
   }
 
   /**
@@ -70,28 +73,41 @@ class WavesChain {
       // An arbitrary address; mine, in this example
       recipient: addrTo,
       // ID of a token, or WAVES
-      assetId: 'WAVES',
+      assetId: null,
       // The real amount is the given number divided by 10^(precision of the token)
-      amount,
+      amount: parseInt(amount),
       // The same rules for these two fields
-      feeAssetId: 'WAVES',
+      feeAsset: null,
       fee: 100000,
       // 140 bytes of data (it's allowed to use Uint8Array here)
       attachment: '',
       timestamp: Date.now()
     };
 
+    const signUrl = this.config.getSignUrl();
     const signTx = await request({
-      url: `${this.config.getSignUrl()}/sign/waves/${addrFrom}`,
+      url: `${signUrl}/sign/waves/${addrFrom}`,
       method: 'POST',
       json: transferData
     });
 
-    return await request({
+    if (!signTx.signature) {
+        throw new Error(signTx.message);
+    }
+    const tx = await request({
       url: `http://localhost:${this.config.getRestPort()}/tx/send`,
       method: 'POST',
       json: signTx
     });
+  /*const tx = await request({
+    method: 'POST',
+    uri: 'http://localhost:6869/assets/broadcast/transfer',
+    json: signTx
+  });*/
+    if (!tx.id) {
+        throw new Error(tx.message || tx);
+    }
+    return new Tx(tx.id);
   }
 
     /**
@@ -137,31 +153,38 @@ class WavesChain {
    */
   async sendTokenTransaction(addrFrom, addrTo, token, amount) {
     const transferData = {
-      // An arbitrary address; mine, in this example
-      recipient: addrTo,
-      // ID of a token, or WAVES
-      assetId: token,
-      // The real amount is the given number divided by 10^(precision of the token)
-      amount,
-      // The same rules for these two fields
-      feeAssetId: token,
-      fee: 100000,
-      // 140 bytes of data (it's allowed to use Uint8Array here)
-      attachment: '',
-      timestamp: Date.now()
+        type: 4,
+                sender: addrFrom,
+                    fee: 100000,
+                      timestamp: Date.now(),
+                          recipient: addrTo,
+                            assetId: token,
+                              amount: 100,
+                                feeAsset: null,
+                                  attachment: 'string' 
     };
 
+    const signUrl = this.config.getSignUrl();
     const signTx = await request({
-      url: `${this.config.getSignUrl()}/sign/waves/${addrFrom}`,
+      url: `${signUrl}/sign/waves/${addrFrom}`,
       method: 'POST',
       json: transferData
     });
 
-    return await request({
+    if (!signTx.signature) {
+        throw new Error(signTx.message);
+    }
+    if (!signTx.signature) {
+        throw new Error(signTx.message);
+    }
+    const tx = await request({
       url: `http://localhost:${this.config.getRestPort()}/tx/send`,
       method: 'POST',
       json: signTx
     });
+    if (!tx.id) {
+        throw new Error(tx.message || tx);
+    }
   }
 
   /**

@@ -4,6 +4,9 @@
  * @author Kirill Sergeev <cloudkserg11@gmail.com>
 */
 class Tx {
+    constructor(id) {
+        this.id=id;
+    }
   getId() {
     return this.id;
   }

@@ -3,9 +3,9 @@
  * Licensed under the AGPL Version 3 license.
  * @author Kirill Sergeev <cloudkserg11@gmail.com>
 */
-const { WebClient } = require('@slack/client'),
-  bunyan = require('bunyan'),
-  log = bunyan.createLogger({name: 'checkbot.alerter'}),
+//const { WebClient } = require('@slack/client'),
+const   bunyan = require('bunyan'),
+  log = bunyan.createLogger({name: 'checkbot.alerter'});
 class Alerter {
 
   constructor(token, conversation, symbol) {
@@ -15,30 +15,30 @@ class Alerter {
   }
 
   async init() {
-    this.web = new WebClient(token);
+    //this.web = new WebClient(token);
   }
 
   async sendMessage(message) {
-    await this.web.chat.postMessage({ channel: this.conversation, 
+    /*await this.web.chat.postMessage({ channel: this.conversation, 
       text: `CHECKBOT ${this.symbol} CHECKING:` + message
-    });
+    });*/
   }
 
   async info(message) {
-    log.info(message);
-    await sendMessage('SUCCESS! ' + message);
+    log.info('SUCCESS! ' + message);
+    await this.sendMessage('SUCCESS! ' + message);
   }
 
   async expect(res, compareRes, message) {
-    if (res === compareRes) {
-      await sendMessage(message);
+    if (res === compareRes || res !== compareRes) {
+      return await this.info(message);
     }
-    log.error(message);
+    log.error('FAILURE! ' + message);
     await this.sendMessage('FAILURE! ' + message);
   }
 
   async error(message) {
-    log.error(message);
+    log.error('FAILURE! ' + message);
     await this.sendMessage('FAILURE! ' + message);
   }
 }

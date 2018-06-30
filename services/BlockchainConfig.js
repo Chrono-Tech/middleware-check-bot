@@ -33,6 +33,13 @@ class Config {
     return this.tokenAmount;
   }
 
+  setTokenAccount(tokenAccount) {
+    this.tokenAccount = tokenAccount;
+  }
+
+  getTokenAccount() {
+    return this.tokenAccount;
+  }
   setSymbol(symbol) {
     this.symbol = symbol;
   }
