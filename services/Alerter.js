@@ -34,7 +34,6 @@ class Alerter {
     if (_.isEqual(res, compareRes)) {
       return await this.info(message);
     }
-    console.log('ERRROR', res, compareRes);
     log.error('FAILURE! ' + message + ' not equal values:' + res + ' ' + compareRes);
     await this.sendMessage('FAILURE! ' + message);
   }

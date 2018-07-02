@@ -17,6 +17,14 @@ class Config {
     this.restPort = restPort;
   }
 
+  setNetwork(network) {
+    this.network = network;
+  }
+
+  getNetwork() {
+    return this.network;
+  }
+
   setTokenName(tokenName) {
     this.tokenName = tokenName;
   }

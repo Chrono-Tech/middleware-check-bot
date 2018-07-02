@@ -21,7 +21,7 @@ const blockchainSymbols = [
 const blockchains = _.chain(blockchainSymbols).map(symbol => {
     const parts = _.get(process.env, symbol, '').split(',');
 
-  if (parts.length == 9) {
+  if (parts.length >= 9) {
     const config = new BlockchainConfig(
       parts[0], //addressFrom
       parts[1], //addressTo
@@ -34,6 +34,7 @@ const blockchains = _.chain(blockchainSymbols).map(symbol => {
     config.setTokenName(parts[6]);
     config.setTokenAmount(parts[7]);
     config.setTokenAccount(parts[8]);
+    config.setNetwork(parts[9]);
     config.setSignUrl(process.env.SIGN_URL);
     return config;
   }

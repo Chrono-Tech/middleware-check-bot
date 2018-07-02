@@ -12,6 +12,7 @@ const config = require('./config'),
   blockchainFactory = require('./services/blockhainFactory'),
   Alerter = require('./services/Alerter');
 
+
 const registerAccounts = async (blockchain, addresses) => {
   await Promise.mapSeries(addresses, async address => {
     await blockchain.registerAccount(address);
@@ -23,7 +24,7 @@ const registerAccounts = async (blockchain, addresses) => {
 const init = async () => {
   await Promise.mapSeries(config.blockchains, async (blockchainConfig) => {
     const blockchain = blockchainFactory(blockchainConfig);
-
+    
     const alerter = new Alerter(config.slack.token, config.slack.conversation, 
       blockchainConfig.getSymbol());
     await alerter.init();

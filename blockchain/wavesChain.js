@@ -26,6 +26,11 @@ class WavesChain {
     });
   }
 
+
+  getBalanceMessageCount() {
+    return 2;
+  }
+
   /**
    * 
    * 

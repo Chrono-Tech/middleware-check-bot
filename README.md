@@ -23,7 +23,7 @@ The options are presented below:
 | name | description|
 | ------ | ------ |
 | WAVES | String of 6 variables for blockhain waves, split by comma: addrFrom, addrTo, amount, serviceName, rabbitUri, restPort, assetName, assetAmount, assetAccount
-| NEM | String of 6 variables for nem waves, split by comma: addrFrom, addrTo, amount, serviceName, rabbitUri, restPort, mosaicNamespaceId@mosaicName, mosaicAmount, mosaicAccount
+| NEM | String of 6 variables for nem waves, split by comma: addrFrom, addrTo, amount, serviceName, rabbitUri, restPort, mosaicNamespaceId@mosaicName, mosaicAmount, mosaicAccount, nodeNetwork[-104]
 | BITCOIN | String of 6 variables for bitcoin waves, split by comma: addrFrom, addrTo, amount, serviceName, rabbitUri, restPort
 | ETH | String of 6 variables for eth waves, split by comma: addrFrom, addrTo, amount, serviceName, rabbitUri, restPort, erc20Name, erc20Amount, erc20Account
 | SIGN_URL | url for signing transaction

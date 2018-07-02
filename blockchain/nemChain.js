@@ -3,7 +3,9 @@
  * Licensed under the AGPL Version 3 license.
  * @author Kirill Sergeev <cloudkserg11@gmail.com>
 */
-const request = require('request-promise');
+const request = require('request-promise'),
+      _ = require('lodash'),
+      Tx = require('../models/Tx');
 class NemChain {
 
   constructor(blockchainConfig) {
@@ -17,7 +19,7 @@ class NemChain {
    * @memberOf WavesChain
    */
   async registerAccount(address) {
-    await request({
+     await request({
       url: `http://localhost:${this.config.getRestPort()}/addr/`,
       method: 'POST',
       json: {address: address}
@@ -38,8 +40,7 @@ class NemChain {
       method: 'GET',
       json: true
     });
-
-    return content.balance.confirmed.value;
+    return content.balance.confirmed.amount;
   }
 
   /**
@@ -51,7 +52,7 @@ class NemChain {
    * @memberOf WavesChain
    */
   async getBalanceFromMessage(message) {
-    return message.balance.confirmed.value;
+    return message.balance.confirmed.amount;
   }
 
   /**
@@ -75,6 +76,7 @@ class NemChain {
       "multisigAccount": "",
       "message": "Hello",
       "messageType": 1,
+      "version": parseInt(this.config.getNetwork()),
       "mosaics": [] 
     };
 
@@ -84,11 +86,18 @@ class NemChain {
       json: transferData
     });
 
-    return await request({
+    if (!signTx.signature) {
+      throw new Error(signTx.message);
+    }
+    const tx = await request({
       url: `http://localhost:${this.config.getRestPort()}/tx/send`,
       method: 'POST',
-      json: signTx
+      json: {signature: signTx.signature, data: _.omit(signTx, 'signature')}
     });
+    if (!tx.meta || !tx.meta.hash.data) {
+      throw new Error(tx.message || tx);
+    }
+    return new Tx(tx.meta.hash.data);
   }
 
 
@@ -109,6 +118,10 @@ class NemChain {
     });
 
     return content.mosaics[token.name].confirmed.value;
+  }
+
+  getTxFromMessage(message) {
+    return new Tx(message.hash);
   }
 
   /**
@@ -145,10 +158,8 @@ class NemChain {
    */
   async sendTokenTransaction(addrFrom, addrTo, tokenName, amount) {
     const token = this.prepareToken(tokenName);
-
-
     const transferData = {
-      amount: 0,
+      amount,
       "recipient": addrTo,
       "recipientPublicKey": "",
       "isMultisig": false,
@@ -156,6 +167,7 @@ class NemChain {
       "multisigAccount": "",
       "message": "Hello",
       "messageType": 1,
+      "version": parseInt(this.config.getNetwork()),
       "mosaics": [
         {
           mosaicId: {
@@ -173,12 +185,24 @@ class NemChain {
       json: transferData
     });
 
-    return await request({
+    if (!signTx.signature) {
+      throw new Error(signTx.message);
+    }
+    const tx = await request({
       url: `http://localhost:${this.config.getRestPort()}/tx/send`,
       method: 'POST',
-      json: signTx
+      json: {signature: signTx.signature, data: _.omit(signTx, 'signature')}
     });
-  }
+    if (!tx.meta || !tx.meta.hash.data) {
+      throw new Error(tx.message || tx);
+    }
+    return new Tx(tx.meta.hash.data);
+}
+
+
+getBalanceMessageCount() {
+  return 2;
+}
 
   /**
    * 
@@ -187,20 +211,20 @@ class NemChain {
    * 
    * @memberOf WavesChain
    */
-  async checkUnconfirmedTx(contentTx) {
-    return contentTx.blockNumber == -1;
+  async checkTxs(contentTxs) {
+    if (contentTxs.length == 0) 
+      return false;
+    
+    const output = contentTxs.reduce((result, tx) => {
+      if (tx.blockNumber == -1)
+        result['unconfirmed']++;
+      if (tx.blockNumber > 0)
+        result['confirmed']++;
+      return result;     
+    }, {'confirmed': 0, 'unconfirmed': 0});
+    return (output['confirmed'] == 2 && output['unconfirmed'] == 2);
   }
 
-  /**
-   * 
-   * @param {Object} contentTx 
-   * @return {Boolean}
-   * 
-   * @memberOf WavesChain
-   */
-  async checkConfirmedTx(contentTx) {
-    return contentTx.blockNumber > 0;
-  }
 
 
 }
