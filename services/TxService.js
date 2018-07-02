@@ -3,7 +3,8 @@
  * Licensed under the AGPL Version 3 license.
  * @author Kirill Sergeev <cloudkserg11@gmail.com>
 */
-const Promise = require('bluebird');
+const Promise = require('bluebird'),
+  BigNumber =require('bignumber.js');
 
 class TxService {
   constructor(config, blockchain, alerter) {
@@ -38,7 +39,7 @@ class TxService {
     }, {noAck: true}));
   }
 
-  async getMessageTransaction() {
+  async getMessageTransaction(countMsg) {
     const channel = await this.config.createChannel();
     const serviceName = this.config.getServiceName();
     await channel.assertExchange('events', 'topic', {durable: false});
@@ -46,35 +47,45 @@ class TxService {
     await channel.bindQueue(`${serviceName}_test.block`, 'events', 
       `${serviceName}_transaction.*`
     );
+
+
+    const msgs = [];
     return await new Promise(res => channel.consume(`${serviceName}_test.block`, async (message) => {
         const c = JSON.parse(message.content);
+        const messageTx = this.blockchain.getTxFromMessage(c);
+        const isTx = (this.tx && messageTx.getId() == this.tx.getId());
+        if (isTx) {
+          msgs.push(c);
+          if (msgs.length == countMsg) {
             await channel.cancel(message.fields.consumerTag);
-            res(c);
+            res(msgs);
+          }
+        }
     }, {noAck: true}));
   }
 
   initNewBalances(initBalances, transferAmount) {
     return [
-      initBalances[0]-transferAmount,
-      initBalances[1]+transferAmount
+      new BigNumber(initBalances[0]).minus(transferAmount),
+      new BigNumber(initBalances[1]).plus(transferAmount)
     ]
   }
 
-  async getCheckBalanceMessages(accounts, newBalances) {
-    return await Promise.map(accounts, async(account) => {
-      const balance = await this.blockchain.getBalanceFromMessage(
-        await this.getMessageBalance(account)
-      );
-      const balanceKey = (account == accounts[0]) ? 0 : 1;
-      return balance == newBalances[balanceKey];
-    });
+
+  checkBalance(account, balance, accounts, newBalances) {
+    return (
+      account === accounts[0] ? 
+      newBalances[0].minus(balance).toNumber() >= 0 :
+      newBalances[1].minus(balance).toNumber() == 0
+    );
   }
+
+
 
   async getCheckBalanceRests(accounts, newBalances) {
     return await Promise.map(accounts, async (account) => {
       const balance = await this.blockchain.getBalance(account);
-      const balanceKey = (account == accounts[0]) ? 0 : 1;
-      return balance == newBalances[balanceKey];
+      return this.checkBalance(account, balance, accounts, newBalances);
     });
   } 
 
@@ -85,16 +96,14 @@ class TxService {
         await this.getMessageBalance(account),
         tokenName
       );
-      const balanceKey = (account == accounts[0]) ? 0 : 1;
-      return balance == newBalances[balanceKey];
+      return this.checkBalance(account, balance, accounts, newBalances);
     });
   }
 
   async getCheckTokenBalanceRests(accounts, tokenName, newBalances) {
     return await Promise.map(accounts, async (account) => {
       const balance = await this.blockchain.getTokenBalance(account, tokenName);
-      const balanceKey = (account == accounts[0]) ? 0 : 1;
-      return balance == newBalances[balanceKey];
+      return this.checkBalance(account, balance, accounts, newBalances);
     });
   } 
 
@@ -105,32 +114,24 @@ class TxService {
       this.config.getTokenName()
     );
 
-    let tx;
+    this.tx = null;
+
     await Promise.all([
       (async () => {
-        tx = await this.blockchain.sendTokenTransaction(
+        this.tx = await this.blockchain.sendTokenTransaction(
           accounts[0], accounts[1], 
           this.config.getTokenName(),
           this.config.getTokenAmount()
         );
-        await this.alerter.info('send token transaction ' + tx.getId());
+        await this.alerter.info('send token transaction ' + this.tx.getId());
       })(),
       (async () => {
-        const contentTx = await this.getMessageTransaction();
+        const contentTxs = await this.getMessageTransaction(4);
         await this.alerter.expect(
-          await this.blockchain.checkUnconfirmedTx(contentTx),
+          await this.blockchain.checkTxs(contentTxs),
           true,
-          'check unconfirmed transaction ' + tx.getId()
+          'check rmq message  about token unconfirmed and confirmed transaction ' + this.tx.getId()
         );
-      })(),
-      (async () => {
-        const contentTx = await this.getMessageTransaction();
-        await this.alerter.expect(
-          await this.blockchain.checkConfirmedTx(contentTx),
-          true,
-          'check confirmed transaction ' + tx.getId()
-        );
-
         const newBalances = this.initNewBalances(initBalances, 
           this.config.getTransferAmount()
         );
@@ -140,7 +141,7 @@ class TxService {
             newBalances
           ),
           [true, true],
-          'check message about token update balance'
+          'check rmq message about token update balance'
         );
 
         await this.alerter.expect(
@@ -149,7 +150,7 @@ class TxService {
             newBalances
           ),
           [true, true],
-          'check new token balance on rest'
+          'check new token balances from rest'
         );
  
       })()
@@ -159,48 +160,62 @@ class TxService {
 
   async checkTransferTransaction(accounts) {
     const initBalances = await this.getInitBalances(accounts);
-
-    let tx;
     await Promise.all([
       (async () => {
-        tx = await this.blockchain.sendTransferTransaction(
+        this.tx = await this.blockchain.sendTransferTransaction(
           accounts[0], accounts[1], 
           this.config.getTransferAmount()
         );
-        console.log(tx);
-        await this.alerter.info('send transfer transaction ' + tx.getId());
+        await this.alerter.info('send transfer transaction ' + this.tx.getId());
       })(),
       (async () => {
-        const contentTx = await this.getMessageTransaction();
+        const txs = await this.getMessageTransaction(4);
         await this.alerter.expect(
-          await this.blockchain.checkUnconfirmedTx(contentTx),
+          await this.blockchain.checkTxs(txs),
           true,
-          'check unconfirmed transaction ' + tx.getId()
+          'get 4 rmq messages about unconfirmed and confirmed transaction: ' + this.tx.getId()
         );
-      })(),
-      (async () => {
-        const contentTx = await this.getMessageTransaction();
-        await this.alerter.expect(
-          await this.blockchain.checkConfirmedTx(contentTx),
-          true,
-          'check confirmed transaction ' + tx.getId()
-        );
-
         const newBalances = this.initNewBalances(initBalances, 
           this.config.getTransferAmount()
         );
-        await this.alerter.expect(
-          await this.getCheckBalanceMessages(accounts, newBalances),
-          [true, true],
-          'check message about update balance'
-        );
+        
 
-        await this.alerter.expect(
-          await this.getCheckBalanceRests(accounts, newBalances),
-          [true, true],
-          'check new balance on rest'
-        );
- 
+        await (async () => {
+          const balance = await this.blockchain.getBalanceFromMessage(
+            await this.getMessageBalance(accounts[0])
+          );
+          this.alerter.expect(
+            balance, newBalances[0], 
+            'check rmq message about balance on sender with init=' + initBalances[0]
+          );
+        })();
+
+        await (async () => {
+          const balance = await this.blockchain.getBalanceFromMessage(
+            await this.getMessageBalance(accounts[1])
+          );
+          this.alerter.expect(
+            balance, newBalances[1], 
+            'check rmq message about balance on recipient with init=' + initBalances[1]
+          );
+        })();
+
+
+        await (async () => {
+          const balance = await this.blockchain.getBalance(accounts[0]);
+          this.alerter.expect(
+            balance.toString(), newBalances[0].toString(), 
+            'check balance sender from rest with init=' + initBalances[0]
+          );
+        })();
+
+        await (async () => {
+          const balance = await this.blockchain.getBalance(accounts[1]);
+          this.alerter.expect(
+            balance.toString(), newBalances[1].toString(), 
+            'check balance recipient from rest with init=' + initBalances[1]
+          );
+        })();
       })()
     ]);
 

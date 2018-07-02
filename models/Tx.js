@@ -14,6 +14,8 @@ class Tx {
   setId(id) {
     this.id = id;
   }
+
+
 }
 
 module.exports = Tx;

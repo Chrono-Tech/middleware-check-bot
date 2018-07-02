@@ -4,7 +4,7 @@
  * @author Kirill Sergeev <cloudkserg11@gmail.com>
 */
 const request = require('request-promise'),
-      Promise = require('bluebird'),
+      _ = require('lodash'),
       Tx = require('../models/Tx');
 class WavesChain {
 
@@ -19,12 +19,11 @@ class WavesChain {
    * @memberOf WavesChain
    */
   async registerAccount(address) {
-    const b = await request({
+    await request({
       url: `http://localhost:${this.config.getRestPort()}/addr/`,
       method: 'POST',
       json: {address: address}
     });
-    console.log(b);
   }
 
   /**
@@ -72,18 +71,17 @@ class WavesChain {
     const transferData = {
       // An arbitrary address; mine, in this example
       recipient: addrTo,
-      // ID of a token, or WAVES
-      assetId: null,
       // The real amount is the given number divided by 10^(precision of the token)
       amount: parseInt(amount),
       // The same rules for these two fields
-      feeAsset: null,
+      assetId: null,
+      feeAssetId: null,
+      //feeAsset: 0,
       fee: 100000,
       // 140 bytes of data (it's allowed to use Uint8Array here)
       attachment: '',
       timestamp: Date.now()
     };
-
     const signUrl = this.config.getSignUrl();
     const signTx = await request({
       url: `${signUrl}/sign/waves/${addrFrom}`,
@@ -99,15 +97,15 @@ class WavesChain {
       method: 'POST',
       json: signTx
     });
-  /*const tx = await request({
-    method: 'POST',
-    uri: 'http://localhost:6869/assets/broadcast/transfer',
-    json: signTx
-  });*/
     if (!tx.id) {
         throw new Error(tx.message || tx);
     }
     return new Tx(tx.id);
+  }
+
+
+  getTxFromMessage(message) {
+    return new Tx(message.id);
   }
 
     /**
@@ -125,7 +123,7 @@ class WavesChain {
       json: true
     });
 
-    return content.assets[tokenName];
+    return _.find(content.assets, asset => asset.id == tokenName).balance;
   }
 
   /**
@@ -153,16 +151,17 @@ class WavesChain {
    */
   async sendTokenTransaction(addrFrom, addrTo, token, amount) {
     const transferData = {
-        type: 4,
-                sender: addrFrom,
-                    fee: 100000,
-                      timestamp: Date.now(),
-                          recipient: addrTo,
-                            assetId: token,
-                              amount: 100,
-                                feeAsset: null,
-                                  attachment: 'string' 
+      type: 4,
+      fee: 100000,
+      timestamp: Date.now(),
+      recipient: addrTo,
+      assetId: token,
+      amount: 100,
+      sender: addrFrom,
+      feeAsset: null,
+      attachment: '' 
     };
+    
 
     const signUrl = this.config.getSignUrl();
     const signTx = await request({
@@ -174,17 +173,19 @@ class WavesChain {
     if (!signTx.signature) {
         throw new Error(signTx.message);
     }
-    if (!signTx.signature) {
-        throw new Error(signTx.message);
-    }
+
+    
     const tx = await request({
       url: `http://localhost:${this.config.getRestPort()}/tx/send`,
       method: 'POST',
       json: signTx
     });
+
     if (!tx.id) {
         throw new Error(tx.message || tx);
     }
+
+    return new Tx(tx.id);
   }
 
   /**
@@ -194,21 +195,21 @@ class WavesChain {
    * 
    * @memberOf WavesChain
    */
-  async checkUnconfirmedTx(contentTx) {
-    return contentTx.blockNumber == -1;
+  async checkTxs(contentTxs) {
+    if (contentTxs.length == 0) 
+      return false;
+    
+    const output = contentTxs.reduce((result, tx) => {
+      if (tx.blockNumber == -1)
+        result['unconfirmed']++;
+      if (tx.blockNumber > 0)
+        result['confirmed']++;
+      return result;     
+    }, {'confirmed': 0, 'unconfirmed': 0});
+    return (output['confirmed'] == 2 && output['unconfirmed'] == 2);
   }
 
-  /**
-   * 
-   * @param {Object} contentTx 
-   * @return {Boolean}
-   * 
-   * @memberOf WavesChain
-   */
-  async checkConfirmedTx(contentTx) {
-    return contentTx.blockNumber > 0;
-  }
-
+ 
 
 }
 

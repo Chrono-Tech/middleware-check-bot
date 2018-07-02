@@ -4,6 +4,7 @@
  * @author Kirill Sergeev <cloudkserg11@gmail.com>
 */
 //const { WebClient } = require('@slack/client'),
+var _ = require('lodash');
 const   bunyan = require('bunyan'),
   log = bunyan.createLogger({name: 'checkbot.alerter'});
 class Alerter {
@@ -30,10 +31,11 @@ class Alerter {
   }
 
   async expect(res, compareRes, message) {
-    if (res === compareRes || res !== compareRes) {
+    if (_.isEqual(res, compareRes)) {
       return await this.info(message);
     }
-    log.error('FAILURE! ' + message);
+    console.log('ERRROR', res, compareRes);
+    log.error('FAILURE! ' + message + ' not equal values:' + res + ' ' + compareRes);
     await this.sendMessage('FAILURE! ' + message);
   }
 
