@@ -1,0 +1,27 @@
+{
+  "name": "middleware_checkbot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@slack/client": "^4.3.1",
+    "amqplib": "^0.5.1",
+    "bignumber.js": "^7.2.1",
+    "bluebird": "^3.5.1",
+    "bunyan": "^1.8.12",
+    "dotenv": "^4.0.0",
+    "lodash": "^4.17.10",
+    "request": "^2.83.0",
+    "request-promise": "^4.2.2"
+  },
+  "scripts": {
+    "lint": "node ./node_modules/eslint/bin/eslint.js -c .eslintrc.js --ext .js --fix --ignore-path .eslintignore .",
+    "test": "node ./node_modules/mocha/bin/mocha -t 90000 tests"
+  },
+  "author": "chronobank",
+  "license": "AGPL-3.0",
+  "bugs": {
+    "url": "https://github.com/ChronoBank/middleware-check-bot/issues"
+  },
+  "homepage": "https://github.com/ChronoBank/middleware-check-bot#readme",
+  "description": "Middleware Checkbot"
+}
