@@ -30,21 +30,22 @@ const init = async () => {
     await alerter.init();
 
     const addresses = blockchainConfig.getAccounts();
-
     try {
       registerAccounts(blockchain, addresses);
       await alerter.info('register accounts');
   
       const txService = new TxService(blockchainConfig, blockchain, alerter);
       await txService.checkTransferTransaction(addresses);
-      if (blockchainConfig.getTokenAccount()) 
+      if (blockchainConfig.getOther('tokenAccount')) 
         await txService.checkTokenTransaction([
-          blockchainConfig.getTokenAccount(),
+          blockchainConfig.getOther('tokenAccount'),
           addresses[1]
         ]);
 
     } catch (e) {
-      await alerter.error(e);
+      await alerter.error(
+        `Catch ${e.stack.toString()}  :${e.message}`
+      );
     }
   });
 
