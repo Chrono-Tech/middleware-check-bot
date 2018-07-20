@@ -13,12 +13,17 @@ const config = require('./config'),
   Alerter = require('./services/Alerter');
 
 
+const de;eteAccounts = async (blockchain, addresses) => {
+  await Promise.mapSeries(addresses, async address => {
+    await blockchain.deleteAccount(address);
+  });
+};
+
 const registerAccounts = async (blockchain, addresses) => {
   await Promise.mapSeries(addresses, async address => {
     await blockchain.registerAccount(address);
   });
 };
-
 
 
 const init = async () => {
@@ -31,7 +36,8 @@ const init = async () => {
 
     const addresses = blockchainConfig.getAccounts();
     try {
-      registerAccounts(blockchain, addresses);
+      await deleteAccounts(blockchain, addresees);
+      await registerAccounts(blockchain, addresses);
       await alerter.info('register accounts');
   
       const txService = new TxService(blockchainConfig, blockchain, alerter);

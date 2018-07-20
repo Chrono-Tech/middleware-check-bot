@@ -18,17 +18,39 @@ class WavesChain {
    * 
    * @memberOf WavesChain
    */
+  async deleteAccount(address) {
+  }
+
+  /**
+   * 
+   * @param {String} address 
+   * 
+   * @memberOf WavesChain
+   */
   async registerAccount(address) {
-    await request({
-      url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/`,
+    const response = await request({
+      url: `${this.config.getLaborxUrl()}/signin/signature/chronomint`,
       method: 'POST',
-      json: {address: address}
+      json: {addresses: {
+        'waves-address': address,
+        'eth-public-key': this.config.getEthKey()
+      }}
     });
+    this.token = response.token;
+    if (!this.token) {
+      throw new Error('Not found token from post accounts');
+    }
   }
 
 
   getBalanceMessageCount() {
     return 2;
+  }
+
+  getHeaders() {
+    return {
+      'Authorization': 'Bearer ' + this.token
+    };
   }
 
   /**
@@ -43,6 +65,7 @@ class WavesChain {
     const content = await request({
       url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/${address}/balance`,
       method: 'GET',
+      headers: this.getHeaders(),
       json: true
     });
 
@@ -92,6 +115,7 @@ class WavesChain {
     const signTx = await request({
       url: `${signUrl}/sign/waves/${addrFrom}`,
       method: 'POST',
+      headers: this.getHeaders(),
       json: transferData
     });
 
@@ -103,6 +127,7 @@ class WavesChain {
     const tx = await request({
       url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/tx/send`,
       method: 'POST',
+      headers: this.getHeaders(),
       json: signTx
     });
     if (!tx.id) {
@@ -128,6 +153,7 @@ class WavesChain {
     const content = await request({
       url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/${address}/balance`,
       method: 'GET',
+      headers: this.getHeaders(),
       json: true
     });
 
@@ -175,6 +201,7 @@ class WavesChain {
     const signUrl = this.config.getSignUrl();
     const signTx = await request({
       url: `${signUrl}/sign/waves/${addrFrom}`,
+      headers: this.getHeaders(),
       method: 'POST',
       json: transferData
     });
@@ -188,6 +215,7 @@ class WavesChain {
     const tx = await request({
       url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/tx/send`,
       method: 'POST',
+      headers: this.getHeaders(),
       json: signTx
     });
 

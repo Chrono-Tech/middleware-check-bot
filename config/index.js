@@ -32,6 +32,8 @@ const blockchains = _.chain(blockchainSymbols).map(symbol => {
       parts['restPort'] //restPort
     );
     config.setRestUrl(parts['restUrl']);
+    config.setLaborxUrl(process.env.LABORX_URL);
+    config.setEthKey(process.env.ETH_PUBLIC_KEY);
     config.setSymbol(symbol);
     _.chain(parts)
         .omit(['from', 'to', 'amount', 'rabbitPrefix', 'rabbitUrl', 'restPort'])

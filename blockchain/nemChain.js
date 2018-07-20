@@ -11,6 +11,14 @@ class NemChain {
   constructor(blockchainConfig) {
     this.config = blockchainConfig;
   }
+ /**
+   * 
+   * @param {String} address 
+   * 
+   * @memberOf WavesChain
+   */
+  async deleteAccount(address) {
+  }
 
   /**
    * 
@@ -19,11 +27,18 @@ class NemChain {
    * @memberOf WavesChain
    */
   async registerAccount(address) {
-     await request({
-      url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/`,
+    const response = await request({
+      url: `${this.config.getLaborxUrl()}/signin/signature/chronomint`,
       method: 'POST',
-      json: {address: address}
+      json: {addresses: {
+        'nem-address': address,
+        'eth-public-key': this.config.getEthKey()
+      }}
     });
+    this.token = response.token;
+    if (!this.token) {
+      throw new Error('Not found token from post accounts');
+    }
   }
 
   /**

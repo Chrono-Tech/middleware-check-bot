@@ -23,6 +23,23 @@ class Config {
       this.other[name] = value;
   }
 
+  setLaborxUrl(value) {
+    this.laborxUrl = value;
+  }
+
+  getLaborxUrl() {
+    return this.laborxUrl;
+  }
+
+
+  setEthKey(key) {
+    this.ethKey = key;
+  }
+
+  getEthKey() {
+    return this.ethKey;
+  }
+
   getOther(name, def = null) {
     return _.get(this.other, name, def);
   }
