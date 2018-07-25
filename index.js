@@ -13,7 +13,7 @@ const config = require('./config'),
   Alerter = require('./services/Alerter');
 
 
-const de;eteAccounts = async (blockchain, addresses) => {
+const deleteAccounts = async (blockchain, addresses) => {
   await Promise.mapSeries(addresses, async address => {
     await blockchain.deleteAccount(address);
   });
@@ -36,7 +36,8 @@ const init = async () => {
 
     const addresses = blockchainConfig.getAccounts();
     try {
-      await deleteAccounts(blockchain, addresees);
+      await deleteAccounts(blockchain, addresses);
+      await alerter.info('delete accounts');
       await registerAccounts(blockchain, addresses);
       await alerter.info('register accounts');
   

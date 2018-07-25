@@ -4,6 +4,7 @@
  * @author Kirill Sergeev <cloudkserg11@gmail.com>
 */
 const Promise = require('bluebird'),
+  _ = require('lodash'),
   BigNumber =require('bignumber.js');
 
 class TxService {
@@ -39,7 +40,9 @@ class TxService {
     return await new Promise(res => channel.consume(`${serviceName}_test.${address}`, async (message) => {
       count++;
       if (count == maxCount) {
-        res(JSON.parse(message.content));
+        const c  =JSON.parse(message.content);
+        console.log('balance', c);
+        res(c);
         await channel.cancel(message.fields.consumerTag);
       }
     }, {noAck: true}));
@@ -59,9 +62,10 @@ class TxService {
         const c = JSON.parse(message.content);
         const messageTx = this.blockchain.getTxFromMessage(c);
         const isTx = (this.tx && messageTx.getId() == this.tx.getId());
-        if (isTx) {
+
+        if (isTx && c.blockNumber > -1) {
           msgs.push(c);
-          if (msgs.length == countMsg) {
+          if (msgs.length == countMsg)  {
             await channel.cancel(message.fields.consumerTag);
             res(msgs);
           }
@@ -102,7 +106,7 @@ class TxService {
       })(),
       (async () => {
         const firstTx = await this.getMessageTransaction(1);
-        startTransactionTimer();
+        this.startTransactionTimer();
         
         const txs = await this.getMessageTransaction(3);
         await this.alerter.expect(
@@ -154,7 +158,7 @@ class TxService {
     );
   }
 
-  async checkTokenBalanceThroughRest(token, account, newBalance, initBalance, token) {
+  async checkTokenBalanceThroughRest(token, account, newBalance, initBalance, side) {
     const balance = await this.blockchain.getTokenBalance(account, token);
     this.alerter.expect(
       balance.toString(), newBalance.toString(), 
@@ -168,7 +172,7 @@ class TxService {
     const balance = await this.blockchain.getBalanceFromMessage(
       await this.getMessageBalance(account, countMessages)
     );
-    this.alerter.expect(
+    await this.alerter.expect(
       balance, newBalance, 
       'check rmq message about balance on ' + side + ' with init=' + initBalance
     );
@@ -176,16 +180,30 @@ class TxService {
 
   async checkBalanceThroughRest(account, newBalance, initBalance, side) {
     const balance = await this.blockchain.getBalance(account);
-    this.alerter.expect(
+    await this.alerter.expect(
       balance.toString(), newBalance.toString(), 
       'check balance ' + side + ' from rest with init=' + initBalance
     );
   }
 
   startTransactionTimer() {
-    this.transactionTimer = setTimeout(function () {
+    this.TRANSACTION_TIMEOUT = 300000;
+    this.alerter.info('start all timer for ' + this.TRANSACTION_TIMEOUT);
+    this.transactionTimer = setTimeout(() => {
       this.alerter.error('not update balance after ' + this.TRANSACTION_TIMEOUT + 'secs');
     }, this.TRANSACTION_TIMEOUT);
+  }
+
+  startBlockTimer() {
+    this.BLOCK_TIMEOUT = 2000;
+    this.alerter.info('start block timer for ' + this.BLOCK_TIMEOUT);
+    this.blockTimer = setTimeout(() => {
+      this.alerter.error('not update balance after  block generated' + this.BLOCK_TIMEOUT + 'secs');
+    }, this.BLOCK_TIMEOUT);
+  }
+
+  stopBlockTimer() {
+    clearTimeout(this.blockTimer)
   }
 
   stopTransactionTimer() {
@@ -196,30 +214,35 @@ class TxService {
     const initBalances = await this.getInitBalances(accounts);
     await Promise.all([
       (async () => {
-        const firstTx = await this.getMessageTransaction(1);
-        startTransactionTimer();
-        const txs = await this.getMessageTransaction(3);
+        this.startTransactionTimer();
+        const txs = await this.getMessageTransaction(2);
         await this.alerter.expect(
-          await this.blockchain.checkTxs(_.merge([firstTx], txs)),
+          await this.blockchain.checkTxs(txs),
           true,
           'get 4 rmq messages about unconfirmed and confirmed transaction: ' + 
           this.tx.getId()
         );
+        this.startBlockTimer();
+
 
         const newBalances = this.initNewBalances(initBalances, 
           this.config.getTransferAmount()
         );
 
-        await Promise.all(
+        console.log('sddfs$$$$');
+        await Promise.all([
           this.checkBalanceMessage(accounts[0], newBalances[0], initBalances[0], 'sender'),
           this.checkBalanceMessage(accounts[1], newBalances[1], initBalances[1], 'recipient')
-        );
-        await Promise.all(
+        ]);
+        console.log('sddfs');
+        await Promise.all([
           this.checkBalanceThroughRest(account[0], newBalance[0], initBalance[0], 'sender'),
           this.checkBalanceThroughRest(account[1], newBalance[1], initBalance[1], 'recipient')
-        );
+        ]);
 
+        this.stopBlockTimer();
         this.stopTransactionTimer();
+
       })(),
       (async () => {
         this.tx = await this.blockchain.sendTransferTransaction(

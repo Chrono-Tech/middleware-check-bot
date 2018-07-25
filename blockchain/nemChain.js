@@ -11,13 +11,16 @@ class NemChain {
   constructor(blockchainConfig) {
     this.config = blockchainConfig;
   }
- /**
+  /**
    * 
    * @param {String} address 
    * 
    * @memberOf WavesChain
    */
   async deleteAccount(address) {
+    const channel = await this.config.createProfileChannel();
+    const info = {'nem-address': address, user: 1};
+    await channel.publish('profiles', 'address.deleted.waves-address', new Buffer(JSON.stringify(info)));
   }
 
   /**
@@ -30,10 +33,19 @@ class NemChain {
     const response = await request({
       url: `${this.config.getLaborxUrl()}/signin/signature/chronomint`,
       method: 'POST',
-      json: {addresses: {
-        'nem-address': address,
-        'eth-public-key': this.config.getEthKey()
-      }}
+      json: {
+        purpose: "middleware",
+        addresses: [
+          {
+            type: "ethereum-public-key",
+            value: this.config.getEthKey()
+          },
+          {
+            type: "nem-address",
+            value: address
+          }
+        ]
+      }
     });
     this.token = response.token;
     if (!this.token) {

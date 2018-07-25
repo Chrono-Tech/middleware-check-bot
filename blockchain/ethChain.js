@@ -13,13 +13,16 @@ class EthChain {
     this.config = blockchainConfig;
   }
 
- /**
+  /**
    * 
    * @param {String} address 
    * 
    * @memberOf WavesChain
    */
   async deleteAccount(address) {
+    const channel = await this.config.createProfileChannel();
+    const info = {'eth-address': address, user: 1};
+    await channel.publish('profiles', 'address.deleted.waves-address', new Buffer(JSON.stringify(info)));
   }
 
   /**
@@ -32,10 +35,19 @@ class EthChain {
     const response = await request({
       url: `${this.config.getLaborxUrl()}/signin/signature/chronomint`,
       method: 'POST',
-      json: {addresses: {
-        'eth-address': address,
-        'eth-public-key': this.config.getEthKey()
-      }}
+      json: {
+        purpose: "middleware",
+        addresses: [
+          {
+            type: "ethereum-public-key",
+            value: this.config.getEthKey()
+          },
+          {
+            type: "eth-address",
+            value: address
+          }
+        ]
+      }
     });
     this.token = response.token;
     if (!this.token) {

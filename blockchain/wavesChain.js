@@ -19,6 +19,9 @@ class WavesChain {
    * @memberOf WavesChain
    */
   async deleteAccount(address) {
+    const channel = await this.config.createProfileChannel();
+    const info = {'waves-address': address, user: 1};
+    await channel.publish('profiles', 'address.deleted.waves-address', new Buffer(JSON.stringify(info)));
   }
 
   /**
@@ -31,10 +34,22 @@ class WavesChain {
     const response = await request({
       url: `${this.config.getLaborxUrl()}/signin/signature/chronomint`,
       method: 'POST',
-      json: {addresses: {
-        'waves-address': address,
-        'eth-public-key': this.config.getEthKey()
-      }}
+      headers: {
+        Authorization: this.config.getSignature()
+      },
+      json: {
+        purpose: "middleware",
+        addresses: [
+          {
+            type: "ethereum-public-key",
+            value: this.config.getEthKey()
+          },
+          {
+            type: "waves-address",
+            value: address
+          }
+        ]
+      }
     });
     this.token = response.token;
     if (!this.token) {
@@ -244,7 +259,7 @@ class WavesChain {
         result['confirmed']++;
       return result;     
     }, {'confirmed': 0, 'unconfirmed': 0});
-    return (output['confirmed'] == 2 && output['unconfirmed'] == 2);
+    return (output['confirmed'] == 2);
   }
 
  
