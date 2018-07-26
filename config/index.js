@@ -32,7 +32,11 @@ const blockchains = _.chain(blockchainSymbols).map(symbol => {
       parts['restPort'] //restPort
     );
     config.setRestUrl(parts['restUrl']);
+
     config.setLaborxUrl(process.env.LABORX_URL);
+    config.setSignature(process.env.LABORX_SIGNATURE);
+    config.setLaborxRabbit(process.env.LABORX_RABBIT);
+
     config.setEthKey(process.env.ETH_PUBLIC_KEY);
     config.setSymbol(symbol);
     _.chain(parts)
@@ -46,6 +50,7 @@ const blockchains = _.chain(blockchainSymbols).map(symbol => {
 }).filter(bl => bl !== null).value();
 
 let config = {
+  useAlerterMock: process.env.ALERTER_MOCK || false,
   slack: {
     token: process.env.SLACK_TOKEN || '',
     conversation: process.env.SLACK_CONVERSATION || ''

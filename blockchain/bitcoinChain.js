@@ -19,7 +19,7 @@ class BitcoinChain {
   async deleteAccount(address) {
     const channel = await this.config.createProfileChannel();
     const info = {'bitcoin-address': address, user: 1};
-    await channel.publish('profiles', 'address.deleted.waves-address', new Buffer(JSON.stringify(info)));
+    await channel.publish('profiles', 'address.deleted', new Buffer(JSON.stringify(info)));
   }
 
   /**

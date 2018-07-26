@@ -10,7 +10,9 @@ const config = require('./config'),
   _ = require('lodash'),
   TxService = require('./services/TxService'),
   blockchainFactory = require('./services/blockhainFactory'),
-  Alerter = require('./services/Alerter');
+  Alerter = require('./services/Alerter'),
+  AlerterMock = require('./tests/services/AlerterMock');
+
 
 
 const deleteAccounts = async (blockchain, addresses) => {
@@ -30,8 +32,14 @@ const init = async () => {
   await Promise.mapSeries(config.blockchains, async (blockchainConfig) => {
     const blockchain = blockchainFactory(blockchainConfig);
     
-    const alerter = new Alerter(config.slack.token, config.slack.conversation, 
-      blockchainConfig.getSymbol());
+    let alerter;
+    if (config.useAlerterMock) 
+      alerter = new AlerterMock(blockchainConfig.rabbitUri);
+    else
+      alerter = new Alerter(config.slack.token, config.slack.conversation, 
+        blockchainConfig.getSymbol());
+    
+
     await alerter.init();
 
     const addresses = blockchainConfig.getAccounts();

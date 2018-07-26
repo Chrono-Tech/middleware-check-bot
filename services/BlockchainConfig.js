@@ -21,7 +21,11 @@ class Config {
 
   getSignature()
   {
-    return 'Signature 0x3878e330b384e83f614a621c57efedd2eef98eef609db5a3d1f1f8da1e79829f42f141a853951ad065f928334194e38ea056c45b5a5ee195e9d3da290202593a1b';
+    return this.signature;
+  }
+
+  setSignature(signature) {
+    this.signature = signature;
   }
 
   setOther(name, value) {
@@ -34,6 +38,10 @@ class Config {
 
   getLaborxUrl() {
     return this.laborxUrl;
+  }
+
+  setLaborxRabbit(url) {
+    this.laborxRabbitUrl = url;
   }
 
 
@@ -118,7 +126,7 @@ class Config {
 
 
   async createProfileChannel() {
-    let conn = await amqp.connect(this.rabbitUri)
+    let conn = await amqp.connect(this.laborxRabbitUrl)
       .catch(() => {
       log.error('rabbitmq is not available!');
       process.exit(0);

@@ -31,41 +31,42 @@ class TxService {
     const channel = await this.config.createChannel();
     const serviceName = this.config.getServiceName();
     await channel.assertExchange('events', 'topic', {durable: false});
-    await channel.assertQueue(`${serviceName}_test.${address}`);
-    await channel.bindQueue(`${serviceName}_test.${address}`, 'events', 
+    await channel.assertQueue(`${serviceName}_check.${address}`);
+    await channel.bindQueue(`${serviceName}_check.${address}`, 'events', 
       `${serviceName}_balance.${address}`
     );
 
     let count = 0;
-    return await new Promise(res => channel.consume(`${serviceName}_test.${address}`, async (message) => {
+    return await new Promise(res => channel.consume(`${serviceName}_check.${address}`, async (message) => {
+      console.log('check balance message', JSON.parse(message.content));
       count++;
       if (count == maxCount) {
         const c  =JSON.parse(message.content);
-        console.log('balance', c);
         res(c);
         await channel.cancel(message.fields.consumerTag);
       }
     }, {noAck: true}));
   }
 
-  async getMessageTransaction(countMsg) {
+  async getMessageTransaction(countConfirmMsg) {
     const channel = await this.config.createChannel();
     const serviceName = this.config.getServiceName();
     await channel.assertExchange('events', 'topic', {durable: false});
-    await channel.assertQueue(`${serviceName}_test.block`);
-    await channel.bindQueue(`${serviceName}_test.block`, 'events', 
+    await channel.assertQueue(`${serviceName}_check.block`);
+    await channel.bindQueue(`${serviceName}_check.block`, 'events', 
       `${serviceName}_transaction.*`
     );
 
     const msgs = [];
-    return await new Promise(res => channel.consume(`${serviceName}_test.block`, async (message) => {
+    return await new Promise(res => channel.consume(`${serviceName}_check.block`, async (message) => {
         const c = JSON.parse(message.content);
+        
         const messageTx = this.blockchain.getTxFromMessage(c);
         const isTx = (this.tx && messageTx.getId() == this.tx.getId());
 
         if (isTx && c.blockNumber > -1) {
           msgs.push(c);
-          if (msgs.length == countMsg)  {
+          if (msgs.length == countConfirmMsg)  {
             await channel.cancel(message.fields.consumerTag);
             res(msgs);
           }
@@ -102,7 +103,7 @@ class TxService {
           this.config.getOther('tokenAmount'),
           this.alerter.info.bind(this.alerter)
         );
-        await this.alerter.info('send transfer mosaic transaction ' + this.tx.getId());
+        await this.alerter.info('send transfer token transaction ' + this.tx.getId());
       })(),
       (async () => {
         const firstTx = await this.getMessageTransaction(1);
@@ -132,10 +133,10 @@ class TxService {
         );
         await Promise.all(
           this.checkTokenBalanceThroughRest(
-            account[0], newBalance[0], initBalance[0], 'sender'
+            accounts[0], newBalances[0], initBalances[0], 'sender'
           ),
           this.checkTokenBalanceThroughRest(
-            account[1], newBalance[1], initBalance[1], 'recipient'
+            accounts[1], newBalances[1], initBalances[1], 'recipient'
           )
         );
     
@@ -173,8 +174,8 @@ class TxService {
       await this.getMessageBalance(account, countMessages)
     );
     await this.alerter.expect(
-      balance, newBalance, 
-      'check rmq message about balance on ' + side + ' with init=' + initBalance
+      balance.toString(), newBalance.toString(), 
+      'check rmq message about balance on ' + side + ' with init=' + initBalance + ' with new=' + balance
     );
   }
 
@@ -182,7 +183,7 @@ class TxService {
     const balance = await this.blockchain.getBalance(account);
     await this.alerter.expect(
       balance.toString(), newBalance.toString(), 
-      'check balance ' + side + ' from rest with init=' + initBalance
+      'check balance ' + side + ' from rest with init=' + initBalance + ' with new=' + balance.toString()
     );
   }
 
@@ -219,7 +220,7 @@ class TxService {
         await this.alerter.expect(
           await this.blockchain.checkTxs(txs),
           true,
-          'get 4 rmq messages about unconfirmed and confirmed transaction: ' + 
+          'get 2 rmq messages about confirmed transaction: ' + 
           this.tx.getId()
         );
         this.startBlockTimer();
@@ -229,15 +230,13 @@ class TxService {
           this.config.getTransferAmount()
         );
 
-        console.log('sddfs$$$$');
         await Promise.all([
           this.checkBalanceMessage(accounts[0], newBalances[0], initBalances[0], 'sender'),
           this.checkBalanceMessage(accounts[1], newBalances[1], initBalances[1], 'recipient')
         ]);
-        console.log('sddfs');
         await Promise.all([
-          this.checkBalanceThroughRest(account[0], newBalance[0], initBalance[0], 'sender'),
-          this.checkBalanceThroughRest(account[1], newBalance[1], initBalance[1], 'recipient')
+          this.checkBalanceThroughRest(accounts[0], newBalances[0], initBalances[0], 'sender'),
+          this.checkBalanceThroughRest(accounts[1], newBalances[1], initBalances[1], 'recipient')
         ]);
 
         this.stopBlockTimer();
