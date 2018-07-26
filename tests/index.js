@@ -172,7 +172,7 @@ describe('core/rest', function () {
       })(),
       (async () => {
         processPid = spawn('node', 
-          [path.join(__dirname, '..', 'index.js'],
+          [path.join(__dirname, '..', 'index.js')],
           {env, stdio: 'ignore'}
         );
         processPid.on('error', (c) => {
