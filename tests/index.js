@@ -6,6 +6,7 @@
 require('dotenv/config');
 
 const  spawn = require('child_process').spawn,
+  path = require('path'),
   amqp = require('amqplib');
 
 
@@ -120,7 +121,8 @@ describe('core/rest', function () {
       SLACK_KEY: 'sdfsdfsdf',
     };
 
-    const emulatorPid = spawn('node', ['./tests/processes/runEmulator.js', 'emulator'], 
+    const emulatorPid = spawn('node', 
+      [path.join(__dirname, '/tests/processes/runEmulator.js')], 
       {env, stdio: 'ignore'}
     );
     emulatorPid.on('error', c => {
@@ -169,7 +171,8 @@ describe('core/rest', function () {
         });
       })(),
       (async () => {
-        processPid = spawn('node', ['index.js'],
+        processPid = spawn('node', 
+          [path.join(__dirname, '..', 'index.js'],
           {env, stdio: 'ignore'}
         );
         processPid.on('error', (c) => {
