@@ -5,7 +5,6 @@ Middleware bot for checking tx send process of chronobank
 after set all needed blockchains in .env, run node index.js
 and get all messages in log and slack channel about checking process;
 
-
 ##### сonfigure your .env
 
 To apply your configuration, create a .env file in root folder of repo (in case it's not present already).
