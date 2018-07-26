@@ -47,12 +47,14 @@ class NemEmulator extends Emulator {
       signature: 'sdfsdfsdfsdf'
     };
   }
+
   
   sendTransaction () {
+    this.id = this.genNumber()
     return {
       meta: {
         hash: {
-          data: 5677
+          data: this.id
         }
       }
     }
@@ -65,8 +67,17 @@ class NemEmulator extends Emulator {
 
   createConfirmedTx() {
     return {
-      hash: 5677,
+      hash: this.id,
       blockNumber: 10
+    };
+  }
+
+
+
+  createUnconfirmedTx() {
+    return {
+      hash: this.id,
+      blockNumber: -1
     };
   }
 

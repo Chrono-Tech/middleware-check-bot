@@ -3,10 +3,14 @@
  * Licensed under the AGPL Version 3 license.
  * @author Kirill Sergeev <cloudkserg11@gmail.com>
 */
-const request = require('request-promise');
-class BitcoinChain {
+const request = require('request-promise'),
+  BlockChain = require('./BlockChain'),
+  _ = require('lodash'),
+  Tx = require('../models/Tx');
+class BitcoinChain extends BlockChain {
 
   constructor(blockchainConfig) {
+    super();
     this.config = blockchainConfig;
   }
 
@@ -69,19 +73,6 @@ class BitcoinChain {
 
     return content.balance;
   }
-
-  /**
-   * 
-   * 
-   * @param {Object} message 
-   * @return {Number}
-   * 
-   * @memberOf WavesChain
-   */
-  async getBalanceFromMessage(message) {
-    return message.balance;
-  }
-
 
   /**
    * 
@@ -158,6 +149,10 @@ class BitcoinChain {
 
   getTxFromMessage(message) {
     return new Tx(message.id);
+  }
+
+  getBlockNumberFromMessage(message) {
+    return message.block;
   }
 
     /**

@@ -38,14 +38,17 @@ class TxService {
 
     let count = 0;
     return await new Promise(res => channel.consume(`${serviceName}_check.${address}`, async (message) => {
-      console.log('check balance message', JSON.parse(message.content));
       count++;
       if (count == maxCount) {
-        const c  =JSON.parse(message.content);
+        const c  = JSON.parse(message.content);
         res(c);
         await channel.cancel(message.fields.consumerTag);
       }
     }, {noAck: true}));
+  }
+
+  countConfirms (msgs) {
+    return _.filter(msgs, m => this.blockchain.getBlockNumberFromMessage(m) > -1).length;
   }
 
   async getMessageTransaction(countConfirmMsg) {
@@ -59,18 +62,18 @@ class TxService {
 
     const msgs = [];
     return await new Promise(res => channel.consume(`${serviceName}_check.block`, async (message) => {
-        const c = JSON.parse(message.content);
-        
-        const messageTx = this.blockchain.getTxFromMessage(c);
-        const isTx = (this.tx && messageTx.getId() == this.tx.getId());
+      const c = JSON.parse(message.content);
+      
+      const messageTx = this.blockchain.getTxFromMessage(c);
+      const isSendedTx = (this.tx && messageTx.getId() == this.tx.getId());
 
-        if (isTx && c.blockNumber > -1) {
-          msgs.push(c);
-          if (msgs.length == countConfirmMsg)  {
-            await channel.cancel(message.fields.consumerTag);
-            res(msgs);
-          }
+      if (isSendedTx) {
+        msgs.push(c);
+        if (this.countConfirms(msgs) == countConfirmMsg) {
+          await channel.cancel(message.fields.consumerTag);
+          res(msgs);
         }
+      }
     }, {noAck: true}));
   }
 

@@ -5,10 +5,12 @@
 */
 const request = require('request-promise'),
       _ = require('lodash'),
+      BlockChain = require('./BlockChain'),
       Tx = require('../models/Tx');
-class WavesChain {
+class WavesChain extends BlockChain {
 
   constructor(blockchainConfig) {
+    super();
     this.config = blockchainConfig;
   }
 
@@ -58,16 +60,6 @@ class WavesChain {
   }
 
 
-  getBalanceMessageCount() {
-    return 2;
-  }
-
-  getHeaders() {
-    return {
-      'Authorization': 'Bearer ' + this.token
-    };
-  }
-
   /**
    * 
    * 
@@ -85,18 +77,6 @@ class WavesChain {
     });
 
     return content.balance;
-  }
-
-  /**
-   * 
-   * 
-   * @param {Object} message 
-   * @return {Number}
-   * 
-   * @memberOf WavesChain
-   */
-  async getBalanceFromMessage(message) {
-    return message.balance;
   }
 
   /**
@@ -152,9 +132,6 @@ class WavesChain {
   }
 
 
-  getTxFromMessage(message) {
-    return new Tx(message.id);
-  }
 
     /**
    * 
@@ -261,8 +238,6 @@ class WavesChain {
     }, {'confirmed': 0, 'unconfirmed': 0});
     return (output['confirmed'] == 2);
   }
-
- 
 
 }
 

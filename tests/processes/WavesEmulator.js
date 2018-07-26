@@ -33,8 +33,9 @@ class WavesEmulator extends Emulator {
   }
   
   sendTransaction () {
+    this.id = this.genNumber()
     return {
-      id: 5677
+      id: this.id
     }
   }
 
@@ -43,9 +44,16 @@ class WavesEmulator extends Emulator {
     return 2;
   }
 
+  createUnconfirmedTx() {
+    return {
+      id: this.id,
+      blockNumber: -1
+    };
+  }
+
   createConfirmedTx() {
     return {
-      id: 5677,
+      id: this.id,
       blockNumber: 10
     };
   }

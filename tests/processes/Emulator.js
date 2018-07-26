@@ -71,10 +71,16 @@ class Emulator {
       signature: 'sdfsdfsdfsdf'
     };
   }
+
+  
+  genNumber () {
+    return  Math.floor(Math.random() * (1000 - 1) + 1);
+  }
   
   sendTransaction () {
+    this.id = this.genNumber();
     return {
-      id: 5677
+      id: this.id
     }
   }
 
@@ -85,8 +91,15 @@ class Emulator {
 
   createConfirmedTx() {
     return {
-      id: 5677,
+      id: this.id,
       blockNumber: 10
+    };
+  }
+
+  createUnconfirmedTx() {
+    return {
+      id: this.id,
+      blockNumber: -1
     };
   }
 
@@ -125,8 +138,12 @@ class Emulator {
       this.stage = 'update';
       res.send(this.sendTransaction());
 
-      await this.sendMessageTransaction();
-      await this.sendMessageTransaction();
+      await this.sendMessageTransaction(this.createUnconfirmedTx());
+      await this.sendMessageTransaction(this.createUnconfirmedTx());
+      await this.sendMessageTransaction(this.createConfirmedTx());
+      await this.sendMessageTransaction(this.createConfirmedTx());
+      console.log(this.createConfirmedTx(), this.createUnconfirmedTx());
+
 
 
       await this.sendBalanceMessageTransaction();
@@ -150,13 +167,11 @@ class Emulator {
     return await conn.createChannel();
   }
 
-  async sendMessageTransaction() {
+  async sendMessageTransaction(info) {
     const channel = await this.createChannel();
-    const info = this.createConfirmedTx();
     await channel.publish('events', `${this.config.rabbitPrefix}_transaction.1112`, 
       new Buffer(JSON.stringify(info))
     );
-    console.log('send msg transaction', `${this.config.rabbitPrefix}_transaction.1112`);
   
   }
 

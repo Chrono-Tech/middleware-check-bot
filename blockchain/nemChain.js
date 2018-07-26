@@ -5,12 +5,15 @@
 */
 const request = require('request-promise'),
       _ = require('lodash'),
+      BlockChain = require('./BlockChain'),
       Tx = require('../models/Tx');
-class NemChain {
+class NemChain extends BlockChain {
 
   constructor(blockchainConfig) {
+    super();
     this.config = blockchainConfig;
   }
+
   /**
    * 
    * @param {String} address 
@@ -233,10 +236,6 @@ class NemChain {
     return new Tx(tx.meta.hash.data);
 }
 
-
-getBalanceMessageCount() {
-  return 2;
-}
 
   /**
    * 
