@@ -10,8 +10,16 @@ const config = require('./config'),
   _ = require('lodash'),
   TxService = require('./services/TxService'),
   blockchainFactory = require('./services/blockhainFactory'),
-  Alerter = require('./services/Alerter');
+  Alerter = require('./services/Alerter'),
+  AlerterMock = require('./tests/services/AlerterMock');
 
+
+
+const deleteAccounts = async (blockchain, addresses) => {
+  await Promise.mapSeries(addresses, async address => {
+    await blockchain.deleteAccount(address);
+  });
+};
 
 const registerAccounts = async (blockchain, addresses) => {
   await Promise.mapSeries(addresses, async address => {
@@ -20,31 +28,39 @@ const registerAccounts = async (blockchain, addresses) => {
 };
 
 
-
 const init = async () => {
   await Promise.mapSeries(config.blockchains, async (blockchainConfig) => {
     const blockchain = blockchainFactory(blockchainConfig);
     
-    const alerter = new Alerter(config.slack.token, config.slack.conversation, 
-      blockchainConfig.getSymbol());
+    let alerter;
+    if (config.useAlerterMock) 
+      alerter = new AlerterMock(blockchainConfig.rabbitUri);
+    else
+      alerter = new Alerter(config.slack.token, config.slack.conversation, 
+        blockchainConfig.getSymbol());
+    
+
     await alerter.init();
 
     const addresses = blockchainConfig.getAccounts();
-
     try {
-      registerAccounts(blockchain, addresses);
+      await deleteAccounts(blockchain, addresses);
+      await alerter.info('delete accounts');
+      await registerAccounts(blockchain, addresses);
       await alerter.info('register accounts');
   
       const txService = new TxService(blockchainConfig, blockchain, alerter);
       await txService.checkTransferTransaction(addresses);
-      if (blockchainConfig.getTokenAccount()) 
+      if (blockchainConfig.getOther('tokenAccount')) 
         await txService.checkTokenTransaction([
-          blockchainConfig.getTokenAccount(),
+          blockchainConfig.getOther('tokenAccount'),
           addresses[1]
         ]);
 
     } catch (e) {
-      await alerter.error(e);
+      await alerter.error(
+        `Catch ${e.stack.toString()}  :${e.message}`
+      );
     }
   });
 

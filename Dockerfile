@@ -12,5 +12,5 @@ WORKDIR /app
 RUN npm install -g chronobank-middleware --unsafe
 RUN mkdir src && cd src && \
     dmt init && \
-    dmt install middleware-check-bot"#$RELEASE" \
+    dmt install middleware-check-bot"#$RELEASE" 
 CMD pm2-docker start /mnt/config/${NETWORK_TYPE}/ecosystem.config.js
