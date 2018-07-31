@@ -19,8 +19,38 @@ class Config {
     this.other = {};
   }
 
+  getSignature()
+  {
+    return this.signature;
+  }
+
+  setSignature(signature) {
+    this.signature = signature;
+  }
+
   setOther(name, value) {
       this.other[name] = value;
+  }
+
+  setLaborxUrl(value) {
+    this.laborxUrl = value;
+  }
+
+  getLaborxUrl() {
+    return this.laborxUrl;
+  }
+
+  setLaborxRabbit(url) {
+    this.laborxRabbitUrl = url;
+  }
+
+
+  setEthKey(key) {
+    this.ethKey = key;
+  }
+
+  getEthKey() {
+    return this.ethKey;
   }
 
   getOther(name, def = null) {
@@ -87,6 +117,16 @@ class Config {
 
   async createChannel() {
     let conn = await amqp.connect(this.rabbitUri)
+      .catch(() => {
+      log.error('rabbitmq is not available!');
+      process.exit(0);
+    });
+    return await conn.createChannel();
+  }
+
+
+  async createProfileChannel() {
+    let conn = await amqp.connect(this.laborxRabbitUrl)
       .catch(() => {
       log.error('rabbitmq is not available!');
       process.exit(0);

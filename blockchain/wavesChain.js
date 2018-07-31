@@ -5,10 +5,12 @@
 */
 const request = require('request-promise'),
       _ = require('lodash'),
+      BlockChain = require('./BlockChain'),
       Tx = require('../models/Tx');
-class WavesChain {
+class WavesChain extends BlockChain {
 
   constructor(blockchainConfig) {
+    super();
     this.config = blockchainConfig;
   }
 
@@ -18,18 +20,45 @@ class WavesChain {
    * 
    * @memberOf WavesChain
    */
+  async deleteAccount(address) {
+    const channel = await this.config.createProfileChannel();
+    const info = {'waves-address': address, user: 1};
+    await channel.publish('profiles', 'address.deleted', new Buffer(JSON.stringify(info)));
+  }
+
+  /**
+   * 
+   * @param {String} address 
+   * 
+   * @memberOf WavesChain
+   */
   async registerAccount(address) {
-    await request({
-      url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/`,
+    const response = await request({
+      url: `${this.config.getLaborxUrl()}/signin/signature/chronomint`,
       method: 'POST',
-      json: {address: address}
+      headers: {
+        Authorization: this.config.getSignature()
+      },
+      json: {
+        purpose: "middleware",
+        addresses: [
+          {
+            type: "ethereum-public-key",
+            value: this.config.getEthKey()
+          },
+          {
+            type: "waves-address",
+            value: address
+          }
+        ]
+      }
     });
+    this.token = response.token;
+    if (!this.token) {
+      throw new Error('Not found token from post accounts');
+    }
   }
 
-
-  getBalanceMessageCount() {
-    return 2;
-  }
 
   /**
    * 
@@ -43,22 +72,11 @@ class WavesChain {
     const content = await request({
       url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/${address}/balance`,
       method: 'GET',
+      headers: this.getHeaders(),
       json: true
     });
 
     return content.balance;
-  }
-
-  /**
-   * 
-   * 
-   * @param {Object} message 
-   * @return {Number}
-   * 
-   * @memberOf WavesChain
-   */
-  async getBalanceFromMessage(message) {
-    return message.balance;
   }
 
   /**
@@ -92,6 +110,7 @@ class WavesChain {
     const signTx = await request({
       url: `${signUrl}/sign/waves/${addrFrom}`,
       method: 'POST',
+      headers: this.getHeaders(),
       json: transferData
     });
 
@@ -103,6 +122,7 @@ class WavesChain {
     const tx = await request({
       url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/tx/send`,
       method: 'POST',
+      headers: this.getHeaders(),
       json: signTx
     });
     if (!tx.id) {
@@ -112,9 +132,6 @@ class WavesChain {
   }
 
 
-  getTxFromMessage(message) {
-    return new Tx(message.id);
-  }
 
     /**
    * 
@@ -128,6 +145,7 @@ class WavesChain {
     const content = await request({
       url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/${address}/balance`,
       method: 'GET',
+      headers: this.getHeaders(),
       json: true
     });
 
@@ -175,6 +193,7 @@ class WavesChain {
     const signUrl = this.config.getSignUrl();
     const signTx = await request({
       url: `${signUrl}/sign/waves/${addrFrom}`,
+      headers: this.getHeaders(),
       method: 'POST',
       json: transferData
     });
@@ -188,6 +207,7 @@ class WavesChain {
     const tx = await request({
       url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/tx/send`,
       method: 'POST',
+      headers: this.getHeaders(),
       json: signTx
     });
 
@@ -216,10 +236,8 @@ class WavesChain {
         result['confirmed']++;
       return result;     
     }, {'confirmed': 0, 'unconfirmed': 0});
-    return (output['confirmed'] == 2 && output['unconfirmed'] == 2);
+    return (output['confirmed'] == 2);
   }
-
- 
 
 }
 

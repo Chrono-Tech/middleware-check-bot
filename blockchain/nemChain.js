@@ -5,10 +5,12 @@
 */
 const request = require('request-promise'),
       _ = require('lodash'),
+      BlockChain = require('./BlockChain'),
       Tx = require('../models/Tx');
-class NemChain {
+class NemChain extends BlockChain {
 
   constructor(blockchainConfig) {
+    super();
     this.config = blockchainConfig;
   }
 
@@ -18,12 +20,40 @@ class NemChain {
    * 
    * @memberOf WavesChain
    */
+  async deleteAccount(address) {
+    const channel = await this.config.createProfileChannel();
+    const info = {'nem-address': address, user: 1};
+    await channel.publish('profiles', 'address.deleted', new Buffer(JSON.stringify(info)));
+  }
+
+  /**
+   * 
+   * @param {String} address 
+   * 
+   * @memberOf WavesChain
+   */
   async registerAccount(address) {
-     await request({
-      url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/`,
+    const response = await request({
+      url: `${this.config.getLaborxUrl()}/signin/signature/chronomint`,
       method: 'POST',
-      json: {address: address}
+      json: {
+        purpose: "middleware",
+        addresses: [
+          {
+            type: "ethereum-public-key",
+            value: this.config.getEthKey()
+          },
+          {
+            type: "nem-address",
+            value: address
+          }
+        ]
+      }
     });
+    this.token = response.token;
+    if (!this.token) {
+      throw new Error('Not found token from post accounts');
+    }
   }
 
   /**
@@ -206,10 +236,6 @@ class NemChain {
     return new Tx(tx.meta.hash.data);
 }
 
-
-getBalanceMessageCount() {
-  return 2;
-}
 
   /**
    * 

@@ -4,6 +4,7 @@
  * @author Kirill Sergeev <cloudkserg11@gmail.com>
 */
 const Promise = require('bluebird'),
+  _ = require('lodash'),
   BigNumber =require('bignumber.js');
 
 class TxService {
@@ -11,6 +12,7 @@ class TxService {
     this.config = config;
     this.blockchain = blockchain;
     this.alerter = alerter;
+    this.TRANSACTION_TIMEOUT = 2000;
   }
 
   async getInitBalances(accounts) {
@@ -29,42 +31,49 @@ class TxService {
     const channel = await this.config.createChannel();
     const serviceName = this.config.getServiceName();
     await channel.assertExchange('events', 'topic', {durable: false});
-    await channel.assertQueue(`${serviceName}_test.${address}`);
-    await channel.bindQueue(`${serviceName}_test.${address}`, 'events', 
+    await channel.assertQueue(`${serviceName}_check.${address}`);
+    await channel.bindQueue(`${serviceName}_check.${address}`, 'events', 
       `${serviceName}_balance.${address}`
     );
 
     let count = 0;
-    return await new Promise(res => channel.consume(`${serviceName}_test.${address}`, async (message) => {
+    return await new Promise(res => channel.consume(`${serviceName}_check.${address}`, async (message) => {
       count++;
       if (count == maxCount) {
-        res(JSON.parse(message.content));
+        const c  = JSON.parse(message.content);
+        res(c);
         await channel.cancel(message.fields.consumerTag);
       }
     }, {noAck: true}));
   }
 
-  async getMessageTransaction(countMsg) {
+  countConfirms (msgs) {
+    return _.filter(msgs, m => this.blockchain.getBlockNumberFromMessage(m) > -1).length;
+  }
+
+  async getMessageTransaction(countConfirmMsg) {
     const channel = await this.config.createChannel();
     const serviceName = this.config.getServiceName();
     await channel.assertExchange('events', 'topic', {durable: false});
-    await channel.assertQueue(`${serviceName}_test.block`);
-    await channel.bindQueue(`${serviceName}_test.block`, 'events', 
+    await channel.assertQueue(`${serviceName}_check.block`);
+    await channel.bindQueue(`${serviceName}_check.block`, 'events', 
       `${serviceName}_transaction.*`
     );
 
     const msgs = [];
-    return await new Promise(res => channel.consume(`${serviceName}_test.block`, async (message) => {
-        const c = JSON.parse(message.content);
-        const messageTx = this.blockchain.getTxFromMessage(c);
-        const isTx = (this.tx && messageTx.getId() == this.tx.getId());
-        if (isTx) {
-          msgs.push(c);
-          if (msgs.length == countMsg) {
-            await channel.cancel(message.fields.consumerTag);
-            res(msgs);
-          }
+    return await new Promise(res => channel.consume(`${serviceName}_check.block`, async (message) => {
+      const c = JSON.parse(message.content);
+      
+      const messageTx = this.blockchain.getTxFromMessage(c);
+      const isSendedTx = (this.tx && messageTx.getId() == this.tx.getId());
+
+      if (isSendedTx) {
+        msgs.push(c);
+        if (this.countConfirms(msgs) == countConfirmMsg) {
+          await channel.cancel(message.fields.consumerTag);
+          res(msgs);
         }
+      }
     }, {noAck: true}));
   }
 
@@ -97,134 +106,144 @@ class TxService {
           this.config.getOther('tokenAmount'),
           this.alerter.info.bind(this.alerter)
         );
-        await this.alerter.info('send transfer mosaic transaction ' + this.tx.getId());
+        await this.alerter.info('send transfer token transaction ' + this.tx.getId());
       })(),
       (async () => {
-        const txs = await this.getMessageTransaction(4);
+        const firstTx = await this.getMessageTransaction(1);
+        this.startTransactionTimer();
+        
+        const txs = await this.getMessageTransaction(3);
         await this.alerter.expect(
-          await this.blockchain.checkTxs(txs),
+          await this.blockchain.checkTxs(_.merge([firstTx], txs)),
           true,
-          'check 4 rmq message  about token unconfirmed and confirmed transaction ' + 
+          'check 4 rmq message  about token unconfirmed and confirmed transaction ' +
           this.tx.getId()
         );
-
+    
         const newBalances = this.initNewBalances(initBalances, 
           this.config.getOther('tokenAmount')
         );
-
-        await this.waitTokenBalanceMessages(token, accounts, 
-          newBalances, initBalances);
-        await this.checkTokenBalanceThroughRest(token, accounts, 
-          newBalances, initBalances);
+    
+        await Promise.all(
+          this.checkTokenBalanceMessage(
+            accounts[0], newBalances[0], 
+            initBalances[0], 'sender'
+          ),
+          this.checkTokenBalanceMessage(
+            accounts[1], newBalances[1], 
+            initBalances[1], 'recipient'
+          )
+        );
+        await Promise.all(
+          this.checkTokenBalanceThroughRest(
+            accounts[0], newBalances[0], initBalances[0], 'sender'
+          ),
+          this.checkTokenBalanceThroughRest(
+            accounts[1], newBalances[1], initBalances[1], 'recipient'
+          )
+        );
+    
+        this.stopTransactionTimer();
 
       })()
     ]);
   }
 
-  async waitTokenBalanceMessages(token, accounts, newBalances, initBalances) {
+  async checkTokenBalanceMessage(token, account, newBalance, initBalance, side) {
     const countMessages = this.blockchain.getBalanceMessageCount();
-    await (async () => {
-      const balance = await this.blockchain.getTokenBalanceFromMessage(
-        await this.getMessageBalance(accounts[0], countMessages),
-        token
-      );
-      this.alerter.expect(
-        balance, newBalances[0], 
-        'check rmq message about update token balance on sender with init=' +
-        initBalances[0]
-      );
-    })();
-
-    await (async () => {
-      const balance = await this.blockchain.getTokenBalanceFromMessage(
-        await this.getMessageBalance(accounts[1], countMessages),
-        token
-      );
-      this.alerter.expect(
-        balance, newBalances[1], 
-        'check rmq message about update token balance on recipient with init=' + 
-        initBalances[1]
-      );
-    })();
+    const balance = await this.blockchain.getTokenBalanceFromMessage(
+      await this.getMessageBalance(account, countMessages),
+      token
+    );
+    this.alerter.expect(
+      balance, newBalance, 
+      'check rmq message about update token balance on ' + side + ' with init=' +
+      initBalance
+    );
   }
 
-  async checkTokenBalanceThroughRest(token, accounts, newBalances, initBalances) {
-    await (async () => {
-      const balance = await this.blockchain.getTokenBalance(accounts[0], token);
-      this.alerter.expect(
-        balance.toString(), newBalances[0].toString(), 
-        'check token balance on sender from rest with init=' + initBalances[0]
-      );
-    })();
+  async checkTokenBalanceThroughRest(token, account, newBalance, initBalance, side) {
+    const balance = await this.blockchain.getTokenBalance(account, token);
+    this.alerter.expect(
+      balance.toString(), newBalance.toString(), 
+      'check token balance on ' + side + ' from rest with init=' + initBalance
+    );
+  }
+  
 
-    await (async () => {
-      const balance = await this.blockchain.getTokenBalance(accounts[1], token);
-      this.alerter.expect(
-        balance.toString(), newBalances[1].toString(), 
-        'check token balance on recipient from rest with init=' + initBalances[1]
-      );
-    })();
+  async checkBalanceMessage(account, newBalance, initBalance, side) {
+    const countMessages = this.blockchain.getBalanceMessageCount();
+    const balance = await this.blockchain.getBalanceFromMessage(
+      await this.getMessageBalance(account, countMessages)
+    );
+    await this.alerter.expect(
+      balance.toString(), newBalance.toString(), 
+      'check rmq message about balance on ' + side + ' with init=' + initBalance + ' with new=' + balance
+    );
   }
 
-
-  async waitBalanceMessages (accounts, newBalances, initBalances) {
-    await (async () => {
-      const balance = await this.blockchain.getBalanceFromMessage(
-        await this.getMessageBalance(accounts[0], this.blockchain.getBalanceMessageCount())
-      );
-      this.alerter.expect(
-        balance, newBalances[0], 
-        'check rmq message about balance on sender with init=' + initBalances[0]
-      );
-    })();
-
-    await (async () => {
-      const balance = await this.blockchain.getBalanceFromMessage(
-        await this.getMessageBalance(accounts[1], this.blockchain.getBalanceMessageCount())
-      );
-      this.alerter.expect(
-        balance, newBalances[1], 
-        'check rmq message about balance on recipient with init=' + initBalances[1]
-      );
-    })();
+  async checkBalanceThroughRest(account, newBalance, initBalance, side) {
+    const balance = await this.blockchain.getBalance(account);
+    await this.alerter.expect(
+      balance.toString(), newBalance.toString(), 
+      'check balance ' + side + ' from rest with init=' + initBalance + ' with new=' + balance.toString()
+    );
   }
 
-  async checkBalanceThroughRest(accounts, newBalanaces, initBalances) {
-    await (async () => {
-      const balance = await this.blockchain.getBalance(accounts[0]);
-      this.alerter.expect(
-        balance.toString(), newBalances[0].toString(), 
-        'check balance sender from rest with init=' + initBalances[0]
-      );
-    })();
+  startTransactionTimer() {
+    this.TRANSACTION_TIMEOUT = 300000;
+    this.alerter.info('start all timer for ' + this.TRANSACTION_TIMEOUT);
+    this.transactionTimer = setTimeout(() => {
+      this.alerter.error('not update balance after ' + this.TRANSACTION_TIMEOUT + 'secs');
+    }, this.TRANSACTION_TIMEOUT);
+  }
 
-    await (async () => {
-      const balance = await this.blockchain.getBalance(accounts[1]);
-      this.alerter.expect(
-        balance.toString(), newBalances[1].toString(), 
-        'check balance recipient from rest with init=' + initBalances[1]
-      );
-    })();
+  startBlockTimer() {
+    this.BLOCK_TIMEOUT = 2000;
+    this.alerter.info('start block timer for ' + this.BLOCK_TIMEOUT);
+    this.blockTimer = setTimeout(() => {
+      this.alerter.error('not update balance after  block generated' + this.BLOCK_TIMEOUT + 'secs');
+    }, this.BLOCK_TIMEOUT);
+  }
+
+  stopBlockTimer() {
+    clearTimeout(this.blockTimer)
+  }
+
+  stopTransactionTimer() {
+    clearTimeout(this.transactionTimer);
   }
 
   async checkTransferTransaction(accounts) {
     const initBalances = await this.getInitBalances(accounts);
     await Promise.all([
       (async () => {
-        const txs = await this.getMessageTransaction(4);
+        this.startTransactionTimer();
+        const txs = await this.getMessageTransaction(2);
         await this.alerter.expect(
           await this.blockchain.checkTxs(txs),
           true,
-          'get 4 rmq messages about unconfirmed and confirmed transaction: ' + 
+          'get 2 rmq messages about confirmed transaction: ' + 
           this.tx.getId()
         );
+        this.startBlockTimer();
+
 
         const newBalances = this.initNewBalances(initBalances, 
           this.config.getTransferAmount()
         );
 
-        await this.waitBalanceMessages(accounts, newBalances, initBalances);
-        await this.checkBalanceThroughRest(accounts, newBalances, initBalances);
+        await Promise.all([
+          this.checkBalanceMessage(accounts[0], newBalances[0], initBalances[0], 'sender'),
+          this.checkBalanceMessage(accounts[1], newBalances[1], initBalances[1], 'recipient')
+        ]);
+        await Promise.all([
+          this.checkBalanceThroughRest(accounts[0], newBalances[0], initBalances[0], 'sender'),
+          this.checkBalanceThroughRest(accounts[1], newBalances[1], initBalances[1], 'recipient')
+        ]);
+
+        this.stopBlockTimer();
+        this.stopTransactionTimer();
 
       })(),
       (async () => {

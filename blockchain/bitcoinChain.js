@@ -3,10 +3,14 @@
  * Licensed under the AGPL Version 3 license.
  * @author Kirill Sergeev <cloudkserg11@gmail.com>
 */
-const request = require('request-promise');
-class BitcoinChain {
+const request = require('request-promise'),
+  BlockChain = require('./BlockChain'),
+  _ = require('lodash'),
+  Tx = require('../models/Tx');
+class BitcoinChain extends BlockChain {
 
   constructor(blockchainConfig) {
+    super();
     this.config = blockchainConfig;
   }
 
@@ -16,12 +20,40 @@ class BitcoinChain {
    * 
    * @memberOf WavesChain
    */
+  async deleteAccount(address) {
+    const channel = await this.config.createProfileChannel();
+    const info = {'bitcoin-address': address, user: 1};
+    await channel.publish('profiles', 'address.deleted', new Buffer(JSON.stringify(info)));
+  }
+
+  /**
+   * 
+   * @param {String} address 
+   * 
+   * @memberOf WavesChain
+   */
   async registerAccount(address) {
-    await request({
-      url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/`,
+    const response = await request({
+      url: `${this.config.getLaborxUrl()}/signin/signature/chronomint`,
       method: 'POST',
-      json: {address: address}
+      json: {
+        purpose: "middleware",
+        addresses: [
+          {
+            type: "ethereum-public-key",
+            value: this.config.getEthKey()
+          },
+          {
+            type: "bitcoin-address",
+            value: address
+          }
+        ]
+      }
     });
+    this.token = response.token;
+    if (!this.token) {
+      throw new Error('Not found token from post accounts');
+    }
   }
 
   /**
@@ -41,19 +73,6 @@ class BitcoinChain {
 
     return content.balance;
   }
-
-  /**
-   * 
-   * 
-   * @param {Object} message 
-   * @return {Number}
-   * 
-   * @memberOf WavesChain
-   */
-  async getBalanceFromMessage(message) {
-    return message.balance;
-  }
-
 
   /**
    * 
@@ -130,6 +149,10 @@ class BitcoinChain {
 
   getTxFromMessage(message) {
     return new Tx(message.id);
+  }
+
+  getBlockNumberFromMessage(message) {
+    return message.block;
   }
 
     /**

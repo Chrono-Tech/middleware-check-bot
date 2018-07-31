@@ -5,11 +5,13 @@
 */
 const request = require('request-promise'),
   _ = require('lodash'),
+  BlockChain = require('./BlockChain'),
   Tx = require('../models/Tx');
 
-class EthChain {
+class EthChain extends BlockChain {
 
   constructor(blockchainConfig) {
+    super();
     this.config = blockchainConfig;
   }
 
@@ -19,12 +21,40 @@ class EthChain {
    * 
    * @memberOf WavesChain
    */
+  async deleteAccount(address) {
+    const channel = await this.config.createProfileChannel();
+    const info = {'eth-address': address, user: 1};
+    await channel.publish('profiles', 'address.deleted', new Buffer(JSON.stringify(info)));
+  }
+
+  /**
+   * 
+   * @param {String} address 
+   * 
+   * @memberOf WavesChain
+   */
   async registerAccount(address) {
-    await request({
-      url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/`,
+    const response = await request({
+      url: `${this.config.getLaborxUrl()}/signin/signature/chronomint`,
       method: 'POST',
-      json: {address: address}
+      json: {
+        purpose: "middleware",
+        addresses: [
+          {
+            type: "ethereum-public-key",
+            value: this.config.getEthKey()
+          },
+          {
+            type: "eth-address",
+            value: address
+          }
+        ]
+      }
     });
+    this.token = response.token;
+    if (!this.token) {
+      throw new Error('Not found token from post accounts');
+    }
   }
 
   /**
@@ -43,18 +73,6 @@ class EthChain {
     });
 
     return content.balance;
-  }
-
-  /**
-   * 
-   * 
-   * @param {Object} message 
-   * @return {Number}
-   * 
-   * @memberOf WavesChain
-   */
-  async getBalanceFromMessage(message) {
-    return message.balance;
   }
 
   /**
@@ -198,7 +216,6 @@ class EthChain {
     }, {'confirmed': 0, 'unconfirmed': 0});
     return (output['confirmed'] == 2 && output['unconfirmed'] == 2);
   }
-
 
 
 }
