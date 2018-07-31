@@ -20,7 +20,7 @@ class NemChain {
    */
   async registerAccount(address) {
      await request({
-      url: `http://localhost:${this.config.getRestPort()}/addr/`,
+      url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/`,
       method: 'POST',
       json: {address: address}
     });
@@ -36,7 +36,7 @@ class NemChain {
    */
   async getBalance(address) {
     const content = await request({
-      url: `http://localhost:${this.config.getRestPort()}/addr/${address}/balance`,
+      url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/${address}/balance`,
       method: 'GET',
       json: true
     });
@@ -61,12 +61,13 @@ class NemChain {
    * @param {String} addrFrom 
    * @param {String} addrTo 
    * @param {Number} amount 
+   * @param {Function} logger
    * 
    * @return {models/Tx} Tx
    * 
    * @memberOf WavesChain
    */
-  async sendTransferTransaction(addrFrom, addrTo, amount) {
+  async sendTransferTransaction(addrFrom, addrTo, amount, logger) {
     const transferData = {
       amount,
       "recipient": addrTo,
@@ -76,7 +77,7 @@ class NemChain {
       "multisigAccount": "",
       "message": "Hello",
       "messageType": 1,
-      "version": parseInt(this.config.getNetwork()),
+      "version": parseInt(this.config.getOther('network')),
       "mosaics": [] 
     };
 
@@ -89,8 +90,11 @@ class NemChain {
     if (!signTx.signature) {
       throw new Error(signTx.message);
     }
+    logger('sign transaction ' + signTx.signature);
+
+
     const tx = await request({
-      url: `http://localhost:${this.config.getRestPort()}/tx/send`,
+      url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/tx/send`,
       method: 'POST',
       json: {signature: signTx.signature, data: _.omit(signTx, 'signature')}
     });
@@ -101,7 +105,7 @@ class NemChain {
   }
 
 
-    /**
+  /**
    * 
    * 
    * @param {String} address 
@@ -112,7 +116,7 @@ class NemChain {
   async getTokenBalance(address, tokenName) {
     const token = this.prepareToken(tokenName);
     const content = await request({
-      url: `http://localhost:${this.config.getRestPort()}/addr/${address}/balance`,
+      url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/${address}/balance`,
       method: 'GET',
       json: true
     });
@@ -151,12 +155,13 @@ class NemChain {
    * @param {String} addrFrom 
    * @param {String} addrTo 
    * @param {Number} amount 
+   * @param {Function} logger
    * 
    * @return {models/Tx} Tx
    * 
    * @memberOf WavesChain
    */
-  async sendTokenTransaction(addrFrom, addrTo, tokenName, amount) {
+  async sendTokenTransaction(addrFrom, addrTo, tokenName, amount, logger) {
     const token = this.prepareToken(tokenName);
     const transferData = {
       amount,
@@ -188,8 +193,10 @@ class NemChain {
     if (!signTx.signature) {
       throw new Error(signTx.message);
     }
+    logger('sign transaction ' + signTx.signature);
+
     const tx = await request({
-      url: `http://localhost:${this.config.getRestPort()}/tx/send`,
+      url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/tx/send`,
       method: 'POST',
       json: {signature: signTx.signature, data: _.omit(signTx, 'signature')}
     });

@@ -3,7 +3,10 @@
  * Licensed under the AGPL Version 3 license.
  * @author Kirill Sergeev <cloudkserg11@gmail.com>
 */
-const request = require('request-promise');
+const request = require('request-promise'),
+  _ = require('lodash'),
+  Tx = require('../models/Tx');
+
 class EthChain {
 
   constructor(blockchainConfig) {
@@ -18,7 +21,7 @@ class EthChain {
    */
   async registerAccount(address) {
     await request({
-      url: `http://localhost:${this.config.getRestPort()}/addr/`,
+      url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/`,
       method: 'POST',
       json: {address: address}
     });
@@ -34,7 +37,7 @@ class EthChain {
    */
   async getBalance(address) {
     const content = await request({
-      url: `http://localhost:${this.config.getRestPort()}/addr/${address}/balance`,
+      url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/${address}/balance`,
       method: 'GET',
       json: true
     });
@@ -60,33 +63,50 @@ class EthChain {
    * @param {String} addrFrom 
    * @param {String} addrTo 
    * @param {Number} amount 
+   * @param {Function} logger
    * 
    * @return {models/Tx} Tx
    * 
    * @memberOf WavesChain
    */
-  async sendTransferTransaction(addrFrom, addrTo, amount) {
+  async sendTransferTransaction(addrFrom, addrTo, amount, logger) {
+    const nonce = await request({
+        url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/${addrFrom}/nonce`,
+        method: 'GET'
+    });
+    if (nonce.code) {
+        throw new Error(nonce.message || nonce);
+    }
     const transferData = {
-      "nonce": "0x00",
-      "gasPrice": "0x09184e72a000", 
-      "gasLimit": "0x2710",
+        nonce: parseInt(nonce),
+      "chainId": 3,
       "to": addrTo, 
-      "value": amount, 
-      // EIP 155 chainId - mainnet: 1, ropsten: 3
-      "chainId": 3
+      gas: this.config.getOther('gas', null),
+      gasLimit: this.config.getOther('gasLimit', null),
+      gasPrice: this.config.getOther('gasPrice', null),
+      "value": amount
     };
-
+    const signUrl = this.config.getSignUrl();
     const signTx = await request({
-      url: `${this.config.getSignUrl()}/sign/eth/${addrFrom}`,
+      url: `${signUrl}/sign/eth/${addrFrom}`,
       method: 'POST',
       json: transferData
     });
 
-    return await request({
-      url: `http://localhost:${this.config.getRestPort()}/tx/send`,
+    if (!signTx.hex) {
+        throw new Error(signTx.message);
+    }
+    logger('sign transaction ' + signTx.hex);
+
+    const tx = await request({
+      url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/tx/send`,
       method: 'POST',
       json: signTx
     });
+    if (!tx.hash) {
+        throw new Error(tx.message || tx);
+    }
+    return new Tx(tx.hash);
   }
 
 
@@ -100,12 +120,34 @@ class EthChain {
    */
   async getTokenBalance(address, tokenName) {
     const content = await request({
-      url: `http://localhost:${this.config.getRestPort()}/addr/${address}/balance`,
+      url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/${address}/balance`,
       method: 'GET',
       json: true
     });
 
     return content.balance;
+  }
+
+  getTxFromMessage(message) {
+    return new Tx(message.hash);
+  }
+
+      /**
+   * 
+   * 
+   * @param {String} address 
+   * @return {Number}
+   * 
+   * @memberOf WavesChain
+   */
+  async getTokenBalance(address, tokenName) {
+    // const content = await request({
+    //   url: `http://${this.config.getRestUrl()}:${this.config.getRestPort()}/addr/${address}/balance`,
+    //   method: 'GET',
+    //   json: true
+    // });
+
+    // return _.find(content.erc20, asset => asset.id == tokenName).balance;
   }
 
   /**
@@ -117,7 +159,7 @@ class EthChain {
    * @memberOf WavesChain
    */
   async getTokenBalanceFromMessage(message, tokenName) {
-    return message.balance;
+    // return message.balance;
   }
 
   /**
@@ -126,33 +168,14 @@ class EthChain {
    * @param {String} addrFrom 
    * @param {String} addrTo 
    * @param {Number} amount 
+   * @param {Function} logger
    * 
    * @return {models/Tx} Tx
    * 
    * @memberOf WavesChain
    */
-  async sendTokenTransaction(addrFrom, addrTo, tokenName, amount) {
-    const transferData = {
-      "nonce": "0x00",
-      "gasPrice": "0x09184e72a000", 
-      "gasLimit": "0x2710",
-      "to": addrTo, 
-      "value": amount, 
-      // EIP 155 chainId - mainnet: 1, ropsten: 3
-      "chainId": 3
-    };
+  async sendTokenTransaction(addrFrom, addrTo, tokenName, amount, logger) {
 
-    const signTx = await request({
-      url: `${this.config.getSignUrl()}/sign/eth/${addrFrom}`,
-      method: 'POST',
-      json: transferData
-    });
-
-    return await request({
-      url: `http://localhost:${this.config.getRestPort()}/tx/send`,
-      method: 'POST',
-      json: signTx
-    });
   }
 
   /**
@@ -162,20 +185,20 @@ class EthChain {
    * 
    * @memberOf WavesChain
    */
-  async checkUnconfirmedTx(contentTx) {
-    return contentTx.blockNumber == -1;
+  async checkTxs(contentTxs) {
+    if (contentTxs.length == 0) 
+      return false;
+    
+    const output = contentTxs.reduce((result, tx) => {
+      if (tx.blockNumber == -1)
+        result['unconfirmed']++;
+      if (tx.blockNumber > 0)
+        result['confirmed']++;
+      return result;     
+    }, {'confirmed': 0, 'unconfirmed': 0});
+    return (output['confirmed'] == 2 && output['unconfirmed'] == 2);
   }
 
-  /**
-   * 
-   * @param {Object} contentTx 
-   * @return {Boolean}
-   * 
-   * @memberOf WavesChain
-   */
-  async checkConfirmedTx(contentTx) {
-    return contentTx.blockNumber > 0;
-  }
 
 
 }

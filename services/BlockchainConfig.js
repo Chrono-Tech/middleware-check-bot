@@ -4,6 +4,7 @@
  * @author Kirill Sergeev <cloudkserg11@gmail.com>
 */
 const bunyan = require('bunyan'),
+  _ = require('lodash')
   log = bunyan.createLogger({name: 'checkbot.config'}),
   amqp = require('amqplib');
 class Config {
@@ -15,6 +16,15 @@ class Config {
     this.serviceName = serviceName;
     this.rabbitUri = rabbitUri;
     this.restPort = restPort;
+    this.other = {};
+  }
+
+  setOther(name, value) {
+      this.other[name] = value;
+  }
+
+  getOther(name, def = null) {
+    return _.get(this.other, name, def);
   }
 
   setNetwork(network) {
@@ -86,6 +96,14 @@ class Config {
 
   getServiceName() {
     return this.serviceName;
+  }
+
+  setRestUrl(restUrl) {
+    this.restUrl = restUrl;
+  }
+
+  getRestUrl() {
+    return this.restUrl;
   }
 }
 
