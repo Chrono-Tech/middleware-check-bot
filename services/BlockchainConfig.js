@@ -4,6 +4,7 @@
  * @author Kirill Sergeev <cloudkserg11@gmail.com>
 */
 const bunyan = require('bunyan'),
+  _ = require('lodash')
   log = bunyan.createLogger({name: 'checkbot.config'}),
   amqp = require('amqplib');
 class Config {
@@ -15,6 +16,45 @@ class Config {
     this.serviceName = serviceName;
     this.rabbitUri = rabbitUri;
     this.restPort = restPort;
+    this.other = {};
+  }
+
+  getSignature()
+  {
+    return this.signature;
+  }
+
+  setSignature(signature) {
+    this.signature = signature;
+  }
+
+  setOther(name, value) {
+      this.other[name] = value;
+  }
+
+  setLaborxUrl(value) {
+    this.laborxUrl = value;
+  }
+
+  getLaborxUrl() {
+    return this.laborxUrl;
+  }
+
+  setLaborxRabbit(url) {
+    this.laborxRabbitUrl = url;
+  }
+
+
+  setEthKey(key) {
+    this.ethKey = key;
+  }
+
+  getEthKey() {
+    return this.ethKey;
+  }
+
+  getOther(name, def = null) {
+    return _.get(this.other, name, def);
   }
 
   setNetwork(network) {
@@ -84,8 +124,26 @@ class Config {
     return await conn.createChannel();
   }
 
+
+  async createProfileChannel() {
+    let conn = await amqp.connect(this.laborxRabbitUrl)
+      .catch(() => {
+      log.error('rabbitmq is not available!');
+      process.exit(0);
+    });
+    return await conn.createChannel();
+  }
+
   getServiceName() {
     return this.serviceName;
+  }
+
+  setRestUrl(restUrl) {
+    this.restUrl = restUrl;
+  }
+
+  getRestUrl() {
+    return this.restUrl;
   }
 }
 
